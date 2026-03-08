@@ -7,7 +7,7 @@
  * window.open() MUST be called synchronously inside a click handler
  * or popup blockers will block it.
  */
-export function printCV(elementId: string, filename = 'CV'): void {
+export function printCV(elementId: string, filename = 'CV', bgColor = '#000000'): void {
   const element = document.getElementById(elementId)
   if (!element) return
 
@@ -37,7 +37,7 @@ export function printCV(elementId: string, filename = 'CV'): void {
       print-color-adjust: exact !important;
     }
     @page { margin: 0; size: A4; }
-    html, body { margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; background: ${bgColor}; }
   </style>
 </head>
 <body>

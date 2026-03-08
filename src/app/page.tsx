@@ -62,7 +62,7 @@ export default function Home() {
         <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
           <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Preview</span>
           <button
-            onClick={() => printCV('cv-preview', cv.meta.name || 'CV')}
+            onClick={() => printCV('cv-preview', cv.meta.name || 'CV', cv.style.bgColor)}
             className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
           >
             Export PDF
