@@ -7,6 +7,7 @@ import { MetaEditor } from '@/components/Editor/MetaEditor'
 import { SectionEditor } from '@/components/Editor/SectionEditor'
 import { StyleEditor } from '@/components/Editor/StyleEditor'
 import { CVPreview } from '@/components/Preview/CVPreview'
+import { printCV } from '@/lib/print-cv'
 
 // dnd-kit generates aria IDs that differ between SSR and client → skip SSR
 const SectionList = dynamic(
@@ -23,7 +24,7 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-gray-950 text-gray-200 overflow-hidden">
       {/* Left sidebar */}
-      <aside className="no-print w-56 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
+      <aside className="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
         <div className="flex border-b border-gray-800 flex-shrink-0">
           {(['sections', 'meta', 'style'] as SidebarTab[]).map((tab) => (
             <button
@@ -47,7 +48,7 @@ export default function Home() {
       </aside>
 
       {/* Center: section editor */}
-      <div className="no-print w-80 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-950">
+      <div className="w-80 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-950">
         <div className="px-3 py-2 border-b border-gray-800 flex-shrink-0">
           <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Editor</span>
         </div>
@@ -58,10 +59,10 @@ export default function Home() {
 
       {/* Right: preview */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="no-print px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
+        <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
           <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Preview</span>
           <button
-            onClick={() => window.print()}
+            onClick={() => printCV('cv-preview', cv.meta.name || 'CV')}
             className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
           >
             Export PDF
