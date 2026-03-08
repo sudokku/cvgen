@@ -18,35 +18,12 @@ type SidebarTab = 'sections' | 'meta' | 'style'
 
 export default function Home() {
   const { cv } = useCVStore()
-  const [exporting, setExporting] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('sections')
-
-  async function exportPDF() {
-    setExporting(true)
-    try {
-      const res = await fetch('/api/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cv),
-      })
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${cv.meta.name.replace(/\s+/g, '_')}_CV.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      alert('PDF export failed. Check console for details.')
-    } finally {
-      setExporting(false)
-    }
-  }
 
   return (
     <div className="flex h-screen bg-gray-950 text-gray-200 overflow-hidden">
       {/* Left sidebar */}
-      <aside className="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
+      <aside className="no-print w-56 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
         <div className="flex border-b border-gray-800 flex-shrink-0">
           {(['sections', 'meta', 'style'] as SidebarTab[]).map((tab) => (
             <button
@@ -70,7 +47,7 @@ export default function Home() {
       </aside>
 
       {/* Center: section editor */}
-      <div className="w-80 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-950">
+      <div className="no-print w-80 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-950">
         <div className="px-3 py-2 border-b border-gray-800 flex-shrink-0">
           <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Editor</span>
         </div>
@@ -81,14 +58,13 @@ export default function Home() {
 
       {/* Right: preview */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
+        <div className="no-print px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
           <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Preview</span>
           <button
-            onClick={exportPDF}
-            disabled={exporting}
-            className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
+            onClick={() => window.print()}
+            className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
           >
-            {exporting ? 'Generating...' : 'Export PDF'}
+            Export PDF
           </button>
         </div>
         <div className="flex-1 overflow-auto" style={{ backgroundColor: cv.style.bgColor }}>
