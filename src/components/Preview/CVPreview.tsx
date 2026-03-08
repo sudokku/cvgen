@@ -12,6 +12,37 @@ function rule(style: CVStyle, char = '─', len = 60): string {
   return char.repeat(len)
 }
 
+function PhotoPlaceholder({ cols, rows, style }: { cols: number; rows: number; style: CVStyle }) {
+  const inner = '[Photo]'
+  const lineWidth = Math.max(cols, inner.length + 4)
+  const top = '┌' + '─'.repeat(lineWidth - 2) + '┐'
+  const bottom = '└' + '─'.repeat(lineWidth - 2) + '┘'
+  const emptyLine = '│' + ' '.repeat(lineWidth - 2) + '│'
+  const mid = Math.floor(rows / 2)
+  const pad = Math.floor((lineWidth - 2 - inner.length) / 2)
+  const centeredLine = '│' + ' '.repeat(pad) + inner + ' '.repeat(lineWidth - 2 - pad - inner.length) + '│'
+
+  const lines = [top]
+  for (let i = 1; i < rows - 1; i++) lines.push(i === mid ? centeredLine : emptyLine)
+  lines.push(bottom)
+
+  return (
+    <pre
+      style={{
+        fontFamily: 'inherit',
+        fontSize: `${Math.max(style.fontSize - 4, 7)}px`,
+        lineHeight: 1,
+        color: style.borderColor,
+        margin: 0,
+        whiteSpace: 'pre',
+        flexShrink: 0,
+      }}
+    >
+      {lines.join('\n')}
+    </pre>
+  )
+}
+
 function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }) {
   const isTimeline =
     (section.type === 'experience' || section.type === 'education') &&
@@ -268,8 +299,8 @@ export function CVPreview({ cv }: Props) {
             </div>
           </div>{/* end left col */}
 
-          {/* right: ASCII photo */}
-          {meta.photoAscii && (
+          {/* right: ASCII photo or placeholder */}
+          {meta.photoAscii ? (
             <pre
               style={{
                 fontFamily: 'inherit',
@@ -283,6 +314,12 @@ export function CVPreview({ cv }: Props) {
             >
               {clipAscii(meta.photoAscii, meta.photoHeight ?? 25)}
             </pre>
+          ) : (
+            <PhotoPlaceholder
+              cols={meta.photoWidth ?? 25}
+              rows={meta.photoHeight ?? 25}
+              style={style}
+            />
           )}
         </div>{/* end flex row */}
 

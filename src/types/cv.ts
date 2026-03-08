@@ -18,8 +18,8 @@ export interface CVMeta {
   location?: string
   photoUrl?: string
   photoAscii?: string
-  photoWidth?: number   // ASCII cols (default 50)
-  photoHeight?: number  // max rows shown (default 25)
+  photoWidth?: number   // max ASCII cols (default 50); API fits aspect ratio within this bound
+  photoHeight?: number  // max ASCII rows (default 25); API fits aspect ratio within this bound
 }
 
 export interface CVSection {
@@ -31,8 +31,8 @@ export interface CVSection {
   layout?: TimelineLayout
   photoUrl?: string
   photoAscii?: string
-  photoWidth?: number   // ASCII cols (default 80)
-  photoHeight?: number  // max rows shown (default 40)
+  photoWidth?: number   // max ASCII cols (default 80); API fits aspect ratio within this bound
+  photoHeight?: number  // max ASCII rows (default 40); API fits aspect ratio within this bound
 }
 
 export interface CVStyle {

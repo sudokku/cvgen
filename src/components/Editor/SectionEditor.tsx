@@ -6,8 +6,8 @@ import { CVSection, SectionType, TimelineLayout } from '@/types/cv'
 import { useAsciiGenerator } from '@/lib/use-ascii'
 
 const TIMELINE_TYPES: SectionType[] = ['experience', 'education']
-const DEFAULT_WIDTH = 80
-const DEFAULT_HEIGHT = 40
+const DEFAULT_MAX_COLS = 80
+const DEFAULT_MAX_ROWS = 40
 
 export function SectionEditor() {
   const { cv, selectedSectionId, updateSection } = useCVStore()
@@ -22,11 +22,11 @@ export function SectionEditor() {
     [section, updateSection]
   )
 
-  const width = section?.photoWidth ?? DEFAULT_WIDTH
-  const height = section?.photoHeight ?? DEFAULT_HEIGHT
+  const maxCols = section?.photoWidth ?? DEFAULT_MAX_COLS
+  const maxRows = section?.photoHeight ?? DEFAULT_MAX_ROWS
 
   const handlePhotoUpload = useCallback(
-    async (file: File, cols = DEFAULT_WIDTH) => {
+    async (file: File) => {
       if (!file.type.match(/^image\/jpe?g$/)) {
         alert('Only JPG/JPEG images are supported (no transparent backgrounds).')
         return
@@ -35,23 +35,32 @@ export function SectionEditor() {
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string
         update({ photoUrl: dataUrl, photoAscii: undefined })
-        const ascii = await generate(dataUrl, { cols })
+        const ascii = await generate(dataUrl, { maxCols, maxRows })
         if (ascii) update({ photoAscii: ascii })
       }
       reader.readAsDataURL(file)
     },
-    [update, generate]
+    [update, generate, maxCols, maxRows]
   )
 
-  const handleWidthChange = useCallback(
-    async (newWidth: number) => {
-      update({ photoWidth: newWidth })
+  const handleMaxColsChange = useCallback(
+    async (newMaxCols: number) => {
+      update({ photoWidth: newMaxCols, photoAscii: undefined })
       if (!section?.photoUrl) return
-      update({ photoAscii: undefined })
-      const ascii = await generate(section.photoUrl, { cols: newWidth })
+      const ascii = await generate(section.photoUrl, { maxCols: newMaxCols, maxRows })
       if (ascii) update({ photoAscii: ascii })
     },
-    [section?.photoUrl, update, generate]
+    [section?.photoUrl, maxRows, update, generate]
+  )
+
+  const handleMaxRowsChange = useCallback(
+    async (newMaxRows: number) => {
+      update({ photoHeight: newMaxRows, photoAscii: undefined })
+      if (!section?.photoUrl) return
+      const ascii = await generate(section.photoUrl, { maxCols, maxRows: newMaxRows })
+      if (ascii) update({ photoAscii: ascii })
+    },
+    [section?.photoUrl, maxCols, update, generate]
   )
 
   if (!section) {
@@ -120,7 +129,7 @@ export function SectionEditor() {
             onDrop={(e) => {
               e.preventDefault()
               const file = e.dataTransfer.files[0]
-              if (file) handlePhotoUpload(file, width)
+              if (file) handlePhotoUpload(file)
             }}
           >
             {section.photoUrl ? (
@@ -131,10 +140,10 @@ export function SectionEditor() {
                 className="max-h-24 mx-auto rounded object-cover"
               />
             ) : (
-              <>
-                <p className="text-gray-500 text-sm">Drop photo here or click to upload</p>
-                <p className="text-gray-600 text-xs mt-1">JPG/JPEG only</p>
-              </>
+              <div className="flex flex-col items-center justify-center gap-1 py-6">
+                <p className="text-gray-500 text-xs font-mono">Drop photo here or click</p>
+                <p className="text-gray-600 text-xs font-mono">JPG/JPEG only</p>
+              </div>
             )}
             <input
               ref={fileRef}
@@ -143,41 +152,39 @@ export function SectionEditor() {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) handlePhotoUpload(file, width)
+                if (file) handlePhotoUpload(file)
                 e.target.value = ''
               }}
             />
           </div>
 
           {/* Size controls */}
-          {section.photoUrl && (
-            <div className="space-y-2 flex-shrink-0">
-              <label className="flex flex-col gap-0.5">
-                <span className="text-xs font-mono text-gray-500">width — {width} cols</span>
-                <input
-                  type="range"
-                  min={20}
-                  max={120}
-                  step={5}
-                  value={width}
-                  onChange={(e) => handleWidthChange(Number(e.target.value))}
-                  className="w-full accent-blue-500"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-xs font-mono text-gray-500">height — {height} rows</span>
-                <input
-                  type="range"
-                  min={5}
-                  max={80}
-                  step={1}
-                  value={height}
-                  onChange={(e) => update({ photoHeight: Number(e.target.value) })}
-                  className="w-full accent-blue-500"
-                />
-              </label>
-            </div>
-          )}
+          <div className="space-y-2 flex-shrink-0">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-xs font-mono text-gray-500">max-width — {maxCols} cols</span>
+              <input
+                type="range"
+                min={20}
+                max={120}
+                step={5}
+                value={maxCols}
+                onChange={(e) => handleMaxColsChange(Number(e.target.value))}
+                className="w-full accent-blue-500"
+              />
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-xs font-mono text-gray-500">max-height — {maxRows} rows</span>
+              <input
+                type="range"
+                min={5}
+                max={80}
+                step={1}
+                value={maxRows}
+                onChange={(e) => handleMaxRowsChange(Number(e.target.value))}
+                className="w-full accent-blue-500"
+              />
+            </label>
+          </div>
 
           {/* ASCII preview */}
           {section.photoAscii && (

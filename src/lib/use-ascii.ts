@@ -1,11 +1,34 @@
 import { useCallback, useRef } from 'react'
 
 interface AsciiOptions {
-  cols?: number
+  maxCols?: number
+  maxRows?: number
+}
+
+/**
+ * Compresses an image dataUrl to a smaller JPEG using a canvas element.
+ * Limits the longest dimension to `maxDim` pixels and encodes at the given quality.
+ */
+function compressImage(dataUrl: string, maxDim = 800, quality = 0.85): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    img.src = dataUrl
+  })
 }
 
 /**
  * Returns a stable `generate` function that calls /api/ascii and returns the ASCII string.
+ * Compresses the image client-side before sending to avoid large payload failures.
  * Cancels in-flight requests if called again before the previous one resolves.
  */
 export function useAsciiGenerator() {
@@ -17,10 +40,16 @@ export function useAsciiGenerator() {
     abortRef.current = controller
 
     try {
+      const compressed = await compressImage(dataUrl)
+
       const res = await fetch('/api/ascii', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataUrl, cols: opts.cols ?? 80 }),
+        body: JSON.stringify({
+          dataUrl: compressed,
+          maxCols: opts.maxCols ?? 80,
+          maxRows: opts.maxRows ?? 40,
+        }),
         signal: controller.signal,
       })
       const { ascii } = await res.json()
@@ -34,4 +63,3 @@ export function useAsciiGenerator() {
 
   return generate
 }
-

@@ -4,8 +4,8 @@ import { useRef, useCallback } from 'react'
 import { useCVStore } from '@/store/cv-store'
 import { useAsciiGenerator } from '@/lib/use-ascii'
 
-const DEFAULT_WIDTH = 50
-const DEFAULT_HEIGHT = 25
+const DEFAULT_MAX_COLS = 50
+const DEFAULT_MAX_ROWS = 25
 
 export function MetaEditor() {
   const { cv, updateMeta } = useCVStore()
@@ -13,8 +13,8 @@ export function MetaEditor() {
   const fileRef = useRef<HTMLInputElement>(null)
   const generate = useAsciiGenerator()
 
-  const width = meta.photoWidth ?? DEFAULT_WIDTH
-  const height = meta.photoHeight ?? DEFAULT_HEIGHT
+  const maxCols = meta.photoWidth ?? DEFAULT_MAX_COLS
+  const maxRows = meta.photoHeight ?? DEFAULT_MAX_ROWS
 
   const field = (
     label: string,
@@ -35,7 +35,7 @@ export function MetaEditor() {
   )
 
   const handlePhoto = useCallback(
-    async (file: File, cols = DEFAULT_WIDTH) => {
+    async (file: File) => {
       if (!file.type.match(/^image\/jpe?g$/)) {
         alert('Only JPG/JPEG images are supported (no transparent backgrounds).')
         return
@@ -44,23 +44,32 @@ export function MetaEditor() {
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string
         updateMeta({ photoUrl: dataUrl, photoAscii: undefined })
-        const ascii = await generate(dataUrl, { cols })
+        const ascii = await generate(dataUrl, { maxCols, maxRows })
         if (ascii) updateMeta({ photoAscii: ascii })
       }
       reader.readAsDataURL(file)
     },
-    [updateMeta, generate]
+    [updateMeta, generate, maxCols, maxRows]
   )
 
-  const handleWidthChange = useCallback(
-    async (newWidth: number) => {
-      updateMeta({ photoWidth: newWidth })
+  const handleMaxColsChange = useCallback(
+    async (newMaxCols: number) => {
+      updateMeta({ photoWidth: newMaxCols, photoAscii: undefined })
       if (!meta.photoUrl) return
-      updateMeta({ photoAscii: undefined })
-      const ascii = await generate(meta.photoUrl, { cols: newWidth })
+      const ascii = await generate(meta.photoUrl, { maxCols: newMaxCols, maxRows })
       if (ascii) updateMeta({ photoAscii: ascii })
     },
-    [meta.photoUrl, updateMeta, generate]
+    [meta.photoUrl, maxRows, updateMeta, generate]
+  )
+
+  const handleMaxRowsChange = useCallback(
+    async (newMaxRows: number) => {
+      updateMeta({ photoHeight: newMaxRows, photoAscii: undefined })
+      if (!meta.photoUrl) return
+      const ascii = await generate(meta.photoUrl, { maxCols, maxRows: newMaxRows })
+      if (ascii) updateMeta({ photoAscii: ascii })
+    },
+    [meta.photoUrl, maxCols, updateMeta, generate]
   )
 
   return (
@@ -70,16 +79,26 @@ export function MetaEditor() {
       {/* Photo upload */}
       <div className="flex flex-col gap-1">
         <span className="text-xs font-mono text-gray-400 uppercase tracking-wide">Photo</span>
-        <div
-          className="border border-dashed border-gray-700 rounded p-2 text-center cursor-pointer hover:border-gray-500 transition-colors"
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault()
-            const file = e.dataTransfer.files[0]
-            if (file) handlePhoto(file, width)
-          }}
-        >
+        <div className="relative">
+          {meta.photoUrl && (
+            <button
+              onClick={() => updateMeta({ photoUrl: undefined, photoAscii: undefined })}
+              className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 border border-gray-600 text-gray-400 hover:text-red-400 hover:border-red-500 transition-colors text-xs leading-none"
+              title="Remove photo"
+            >
+              ×
+            </button>
+          )}
+          <div
+            className="border border-dashed border-gray-700 rounded p-2 text-center cursor-pointer hover:border-gray-500 transition-colors"
+            onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              const file = e.dataTransfer.files[0]
+              if (file) handlePhoto(file)
+            }}
+          >
           {meta.photoUrl ? (
             <div className="flex flex-col items-center gap-1">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -91,8 +110,9 @@ export function MetaEditor() {
               )}
             </div>
           ) : (
-            <span className="text-xs text-gray-600 font-mono">drop JPG or click</span>
+            <span className="text-xs text-gray-600 font-mono py-2 block">drop JPG or click</span>
           )}
+          </div>
         </div>
         <input
           ref={fileRef}
@@ -101,50 +121,42 @@ export function MetaEditor() {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
-            if (file) handlePhoto(file, width)
+            if (file) handlePhoto(file)
             e.target.value = ''
           }}
         />
 
-        {/* Size controls — only shown once a photo is uploaded */}
-        {meta.photoUrl && (
-          <div className="space-y-1.5 pt-1">
-            <label className="flex flex-col gap-0.5">
-              <span className="text-xs font-mono text-gray-500">
-                width — {width} cols
-              </span>
-              <input
-                type="range"
-                min={20}
-                max={100}
-                step={5}
-                value={width}
-                onChange={(e) => handleWidthChange(Number(e.target.value))}
-                className="w-full accent-blue-500"
-              />
-            </label>
-            <label className="flex flex-col gap-0.5">
-              <span className="text-xs font-mono text-gray-500">
-                height — {height} rows
-              </span>
-              <input
-                type="range"
-                min={5}
-                max={60}
-                step={1}
-                value={height}
-                onChange={(e) => updateMeta({ photoHeight: Number(e.target.value) })}
-                className="w-full accent-blue-500"
-              />
-            </label>
-            <button
-              onClick={() => updateMeta({ photoUrl: undefined, photoAscii: undefined })}
-              className="text-xs font-mono text-gray-600 hover:text-red-400 transition-colors"
-            >
-              remove photo
-            </button>
-          </div>
-        )}
+        {/* Size controls — always shown so user can set bounds before uploading */}
+        <div className="space-y-1.5 pt-1">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-xs font-mono text-gray-500">
+              max-width — {maxCols} cols
+            </span>
+            <input
+              type="range"
+              min={20}
+              max={100}
+              step={5}
+              value={maxCols}
+              onChange={(e) => handleMaxColsChange(Number(e.target.value))}
+              className="w-full accent-blue-500"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-xs font-mono text-gray-500">
+              max-height — {maxRows} rows
+            </span>
+            <input
+              type="range"
+              min={5}
+              max={60}
+              step={1}
+              value={maxRows}
+              onChange={(e) => handleMaxRowsChange(Number(e.target.value))}
+              className="w-full accent-blue-500"
+            />
+          </label>
+        </div>
       </div>
 
       {field('Name', 'name', 'Your Name')}

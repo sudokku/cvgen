@@ -13,12 +13,19 @@ function imageToAscii(
   width: number,
   height: number,
   palette: keyof typeof PALETTES = 'balanced',
-  cols = 80
+  maxCols = 80,
+  maxRows = 40
 ): string {
   const chars = PALETTES[palette]
+
+  // Fit image into maxCols × maxRows while preserving aspect ratio.
+  // Browser monospace at lineHeight:1 → char height ≈ 1.7× char width.
+  const colsFromRows = Math.floor((maxRows * width * 1.7) / height)
+  const cols = Math.min(maxCols, colsFromRows)
+
   const charWidth = width / cols
-  const charHeight = charWidth * 2.1 // terminal chars are ~2x taller than wide
-  const rows = Math.floor(height / charHeight)
+  const charHeight = charWidth * 1.7
+  const rows = Math.min(maxRows, Math.floor(height / charHeight))
 
   const lines: string[] = []
 
@@ -50,7 +57,7 @@ function imageToAscii(
 
 export async function POST(req: NextRequest) {
   try {
-    const { dataUrl, palette = 'balanced', cols = 80 } = await req.json()
+    const { dataUrl, palette = 'balanced', maxCols = 80, maxRows = 40 } = await req.json()
 
     if (!dataUrl || !dataUrl.startsWith('data:image/')) {
       return NextResponse.json({ error: 'Invalid image data' }, { status: 400 })
@@ -66,7 +73,7 @@ export async function POST(req: NextRequest) {
       .toBuffer({ resolveWithObject: true })
 
     // sharp raw output is RGB (3 channels) after toColorspace
-    const ascii = imageToAscii(data, info.width, info.height, palette, cols)
+    const ascii = imageToAscii(data, info.width, info.height, palette, maxCols, maxRows)
 
     return NextResponse.json({ ascii })
   } catch (err) {
