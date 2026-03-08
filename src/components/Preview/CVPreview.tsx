@@ -2,7 +2,7 @@
 
 import { CV, CVSection, CVStyle } from '@/types/cv'
 import { TimelineSection } from './TimelineSection'
-import { clipAscii } from '@/lib/use-ascii'
+import { clipAscii } from '@/lib/clip-ascii'
 
 interface Props {
   cv: CV

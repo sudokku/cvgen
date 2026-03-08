@@ -20,7 +20,7 @@ async function getBrowser() {
   return puppeteer.launch({ headless: true, args: ['--no-sandbox'] })
 }
 import { parseTimelineEntries } from '@/lib/timeline-parser'
-import { clipAscii } from '@/lib/use-ascii'
+import { clipAscii } from '@/lib/clip-ascii'
 
 function escapeHtml(s: string): string {
   return s
