@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ReactPDF, { Document, Page, Text, View, Link, StyleSheet, Font } from '@react-pdf/renderer'
+import { renderToBuffer, Document, Page, Text, View, Link, StyleSheet, Font } from '@react-pdf/renderer'
 import { createElement as h } from 'react'
 import { CV, CVStyle } from '@/types/cv'
 import { parseTimelineEntries } from '@/lib/timeline-parser'
@@ -245,7 +245,7 @@ export async function POST(req: NextRequest) {
     const cv: CV = await req.json()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const buffer: Buffer = await ReactPDF.renderToBuffer(h(CVDocument, { cv }) as any)
+    const buffer: Buffer = await renderToBuffer(h(CVDocument, { cv }) as any)
     return new NextResponse(buffer.buffer as ArrayBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
