@@ -1,107 +1,195 @@
 import { NextRequest, NextResponse } from 'next/server'
+import ReactPDF, { Document, Page, Text, View, Link, StyleSheet, Font } from '@react-pdf/renderer'
+import { createElement as h } from 'react'
 import { CV, CVStyle } from '@/types/cv'
-
-// Chromium binary URL — must match @sparticuz/chromium-min version (143.0.4), x64 for Vercel
-const CHROMIUM_URL =
-  'https://github.com/Sparticuz/chromium/releases/download/v143.0.4/chromium-v143.0.4-pack.x64.tar'
-
-async function getBrowser() {
-  if (process.env.VERCEL) {
-    const chromium = (await import('@sparticuz/chromium-min')).default
-    const puppeteerCore = (await import('puppeteer-core')).default
-    return puppeteerCore.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(CHROMIUM_URL),
-      headless: true,
-    })
-  }
-  // Local dev — use full puppeteer with bundled Chromium
-  const puppeteer = (await import('puppeteer')).default
-  return puppeteer.launch({ headless: true, args: ['--no-sandbox'] })
-}
 import { parseTimelineEntries } from '@/lib/timeline-parser'
 import { clipAscii } from '@/lib/clip-ascii'
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+// Courier is a built-in PDF font — no download needed, always works
+Font.register({ family: 'Courier', src: 'Courier' })
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function makeStyles(style: CVStyle) {
+  const fs = style.fontSize
+  return StyleSheet.create({
+    page: {
+      fontFamily: 'Courier',
+      fontSize: fs,
+      backgroundColor: style.bgColor,
+      color: style.fgColor,
+      paddingTop: 40,
+      paddingBottom: 40,
+      paddingLeft: 48,
+      paddingRight: 48,
+      lineHeight: 1.5,
+    },
+    // header
+    headerRow: { flexDirection: 'row', gap: 16, marginBottom: 24 },
+    headerLeft: { flex: 1 },
+    name: { fontSize: fs * 2, fontWeight: 'bold', color: style.fgColor, marginBottom: 2 },
+    jobTitle: { fontSize: fs * 1.3, color: style.mutedColor, marginBottom: 6 },
+    contactLink: { color: style.accentColor, textDecoration: 'none', marginBottom: 2, fontSize: fs },
+    contactPlain: { color: style.mutedColor, marginBottom: 2, fontSize: fs },
+    dividerDouble: { color: style.borderColor, marginTop: 8, marginBottom: 20, letterSpacing: -0.5 },
+    // photo
+    photo: { fontSize: Math.max(fs - 4, 7), color: style.mutedColor, lineHeight: 1 },
+    // section
+    sectionTitle: { fontSize: fs * 1.1, fontWeight: 'bold', color: style.fgColor, letterSpacing: 0.3, marginBottom: 2 },
+    dividerSingle: { color: style.borderColor, marginBottom: 6, letterSpacing: -0.5 },
+    sectionSubtitle: { color: style.mutedColor, fontSize: fs, marginBottom: 4 },
+    sectionWrap: { marginBottom: 22 },
+    // timeline
+    timelineRow: { flexDirection: 'row', gap: 4, marginBottom: 1 },
+    timelineConnector: { color: style.mutedColor },
+    timelineRole: { color: style.fgColor, fontWeight: 'bold' },
+    timelinePeriod: { color: style.accentColor },
+    timelineMuted: { color: style.mutedColor },
+    // content
+    contentText: { color: style.fgColor, lineHeight: 1.5 },
+    bold: { fontWeight: 'bold', color: style.fgColor },
+    codeBg: { backgroundColor: style.codeBgColor, color: style.accentColor },
+    muted: { color: style.mutedColor },
+  })
 }
 
-function renderTimelineVertical(content: string, style: CVStyle): string {
+// ── Inline markdown: only **bold** and plain text (react-pdf can't nest mixed inline) ──
+
+function PlainLine({ line, s }: { line: string; s: ReturnType<typeof makeStyles> }) {
+  if (line.startsWith('### ') || line.startsWith('## ') || line.startsWith('# ')) {
+    return h(Text, { style: { ...s.contentText, fontWeight: 'bold' } }, line)
+  }
+  const parts: React.ReactNode[] = []
+  const pattern = /\*\*([^*]+)\*\*/g
+  let last = 0
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(line)) !== null) {
+    if (match.index > last) parts.push(h(Text, { key: `t${last}` }, line.slice(last, match.index)))
+    parts.push(h(Text, { key: `b${match.index}`, style: s.bold }, match[1]))
+    last = match.index + match[0].length
+  }
+  if (last < line.length) parts.push(h(Text, { key: 'tend' }, line.slice(last)))
+  if (parts.length === 0) parts.push(h(Text, { key: 'empty' }, line || ' '))
+  return h(Text, { style: s.contentText }, ...parts)
+}
+
+function PlainContent({ content, s }: { content: string; s: ReturnType<typeof makeStyles> }) {
+  return h(
+    View,
+    null,
+    ...content.split('\n').map((line, i) =>
+      h(PlainLine, { key: i, line, s })
+    )
+  )
+}
+
+// ── Timeline ───────────────────────────────────────────────────────────────
+
+function TimelineVertical({ content, s }: { content: string; s: ReturnType<typeof makeStyles> }) {
   const entries = parseTimelineEntries(content)
-  return entries
-    .map((entry, i) => {
+  return h(
+    View,
+    null,
+    ...entries.map((entry, i) => {
       const isLast = i === entries.length - 1
       const prefix = isLast ? '└─' : '├─'
-      const continuation = isLast ? '&nbsp;&nbsp;' : '│&nbsp;'
-      return `
-      <div style="margin-bottom:${isLast ? 0 : 2}px;font-family:inherit">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:baseline">
-          <span style="color:${style.mutedColor}">${prefix}</span>
-          ${entry.period ? `<span style="color:${style.accentColor}">${escapeHtml(entry.period)}</span>` : ''}
-          <span style="color:${style.fgColor};font-weight:600">${escapeHtml(entry.role)}</span>
-          ${entry.company ? `<span style="color:${style.mutedColor}">@ ${escapeHtml(entry.company)}</span>` : ''}
-        </div>
-        ${entry.description ? `
-        <div style="display:flex;gap:6px">
-          <span style="color:${style.mutedColor}">${continuation}</span>
-          <span style="color:${style.mutedColor};white-space:pre-wrap">${escapeHtml(entry.description)}</span>
-        </div>` : ''}
-        ${!isLast ? `<div style="color:${style.mutedColor}">│</div>` : ''}
-      </div>`
+      const cont = isLast ? '  ' : '│'
+      return h(
+        View,
+        { key: i, style: { marginBottom: isLast ? 0 : 2 } },
+        h(
+          View,
+          { style: s.timelineRow },
+          h(Text, { style: s.timelineConnector }, prefix),
+          entry.period ? h(Text, { style: s.timelinePeriod }, ` ${entry.period} `) : null,
+          h(Text, { style: s.timelineRole }, entry.role),
+          entry.company ? h(Text, { style: s.timelineMuted }, `  @ ${entry.company}`) : null,
+        ),
+        entry.description
+          ? h(
+              View,
+              { style: s.timelineRow },
+              h(Text, { style: s.timelineConnector }, cont),
+              h(Text, { style: { ...s.timelineMuted, flex: 1 } }, ' ' + entry.description),
+            )
+          : null,
+        !isLast ? h(Text, { style: s.timelineConnector }, cont) : null,
+      )
     })
-    .join('')
+  )
 }
 
-function renderTimelineHorizontal(content: string, style: CVStyle): string {
+function TimelineHorizontal({ content, s }: { content: string; s: ReturnType<typeof makeStyles> }) {
   const entries = parseTimelineEntries(content)
-  const connectors = entries
+  const connector = entries
     .map((e, i) =>
-      `<span style="color:${style.accentColor}">[${escapeHtml(e.period || e.role)}]</span>${i < entries.length - 1 ? `<span style="color:${style.mutedColor}">────────</span>` : ''}`
+      `[${e.period || e.role}]${i < entries.length - 1 ? '────────' : ''}`
     )
     .join('')
-
-  const details = entries
-    .map(
-      (e) => `
-    <div style="min-width:160px;padding-right:12px;vertical-align:top;display:inline-block">
-      <div style="color:${style.fgColor};font-weight:600">${escapeHtml(e.role)}</div>
-      ${e.company ? `<div style="color:${style.mutedColor}">@ ${escapeHtml(e.company)}</div>` : ''}
-    </div>`
+  return h(
+    View,
+    null,
+    h(Text, { style: { color: s.timelinePeriod.color } }, connector),
+    h(
+      View,
+      { style: { flexDirection: 'row', marginTop: 4 } },
+      ...entries.map((e, i) =>
+        h(
+          View,
+          { key: i, style: { minWidth: 120, paddingRight: 8 } },
+          h(Text, { style: s.timelineRole }, e.role),
+          e.company ? h(Text, { style: s.timelineMuted }, `@ ${e.company}`) : null,
+        )
+      )
     )
-    .join('')
-
-  return `
-  <div style="overflow-x:auto">
-    <div style="white-space:nowrap;margin-bottom:8px">${connectors}</div>
-    <div style="white-space:nowrap">${details}</div>
-  </div>`
+  )
 }
 
-function inlineMarkdown(text: string, style: CVStyle): string {
-  return text
-    .replace(/\*\*([^*]+)\*\*/g, `<strong style="color:${style.fgColor};font-weight:700">$1</strong>`)
-    .replace(/`([^`]+)`/g, `<code style="color:${style.accentColor};background:${style.codeBgColor};padding:0 3px;border-radius:3px">$1</code>`)
+// ── Section ────────────────────────────────────────────────────────────────
+
+function SectionBlock({ section, s, fs }: {
+  section: CV['sections'][number]
+  s: ReturnType<typeof makeStyles>
+  fs: number
+}) {
+  const isTimeline =
+    (section.type === 'experience' || section.type === 'education') &&
+    section.layout !== 'list'
+
+  let content: React.ReactNode
+  if (section.type === 'photo') {
+    const ascii = section.photoAscii
+      ? clipAscii(section.photoAscii, section.photoHeight ?? 40)
+      : null
+    content = ascii
+      ? h(Text, { style: { ...s.photo, fontSize: Math.max(fs - 3, 8) } }, ascii)
+      : h(Text, { style: s.muted }, '<!-- upload a photo to generate ASCII art -->')
+  } else if (isTimeline) {
+    content = section.layout === 'horizontal'
+      ? h(TimelineHorizontal, { content: section.content, s })
+      : h(TimelineVertical, { content: section.content, s })
+  } else {
+    content = h(PlainContent, { content: section.content, s })
+  }
+
+  return h(
+    View,
+    { style: s.sectionWrap },
+    h(Text, { style: s.sectionTitle }, `## ${section.title}`),
+    section.subtitle ? h(Text, { style: s.sectionSubtitle }, section.subtitle) : null,
+    h(Text, { style: s.dividerSingle }, '─'.repeat(56)),
+    content,
+  )
 }
 
-function renderPlainContent(content: string, style: CVStyle): string {
-  const lines = content.split('\n').map((line) => {
-    if (line.startsWith('### ') || line.startsWith('## ') || line.startsWith('# ')) {
-      return `<div style="font-weight:600;color:${style.fgColor}">${escapeHtml(line)}</div>`
-    }
-    const escaped = escapeHtml(line)
-    return `<div style="min-height:1.4em">${inlineMarkdown(escaped, style) || '&nbsp;'}</div>`
-  })
-  return lines.join('')
-}
+// ── Document ───────────────────────────────────────────────────────────────
 
-function cvToHtml(cv: CV): string {
+function CVDocument({ cv }: { cv: CV }) {
   const { meta, sections, style } = cv
+  const s = makeStyles(style)
   const fs = style.fontSize
 
-  const contactLinks: { label: string; href: string }[] = [
+  const contactItems: { label: string; href: string }[] = [
     meta.email    ? { label: meta.email,                          href: `mailto:${meta.email}` }                         : null,
     meta.github   ? { label: `github.com/${meta.github}`,        href: `https://github.com/${meta.github}` }            : null,
     meta.linkedin ? { label: `linkedin.com/in/${meta.linkedin}`, href: `https://linkedin.com/in/${meta.linkedin}` }     : null,
@@ -109,103 +197,59 @@ function cvToHtml(cv: CV): string {
     meta.location ? { label: meta.location,                      href: '' }                                              : null,
   ].filter(Boolean) as { label: string; href: string }[]
 
-  const contactHtml = contactLinks
-    .map(({ label, href }) =>
-      href
-        ? `<a href="${href}" style="color:${style.accentColor};text-decoration:none;display:block">${escapeHtml(label)}</a>`
-        : `<span style="color:${style.mutedColor};display:block">${escapeHtml(label)}</span>`
+  return h(
+    Document,
+    null,
+    h(
+      Page,
+      { style: s.page },
+      // ── Header ──
+      h(
+        View,
+        { style: s.headerRow },
+        // left col
+        h(
+          View,
+          { style: s.headerLeft },
+          h(Text, { style: s.name }, `# ${meta.name}`),
+          meta.title ? h(Text, { style: s.jobTitle }, meta.title) : null,
+          h(
+            View,
+            { style: { marginTop: 6 } },
+            ...contactItems.map(({ label, href }) =>
+              href
+                ? h(Link, { key: label, src: href, style: s.contactLink }, label)
+                : h(Text, { key: label, style: s.contactPlain }, label)
+            )
+          ),
+        ),
+        // right col: ASCII photo
+        meta.photoAscii
+          ? h(Text, { style: { ...s.photo, fontSize: Math.max(fs - 4, 7) } },
+              clipAscii(meta.photoAscii, meta.photoHeight ?? 25))
+          : null,
+      ),
+      h(Text, { style: s.dividerDouble }, '═'.repeat(60)),
+      // ── Sections ──
+      ...sections.map((section) =>
+        h(SectionBlock, { key: section.id, section, s, fs })
+      ),
     )
-    .join('')
-
-  const sectionsHtml = sections
-    .map((section) => {
-      const isTimeline =
-        (section.type === 'experience' || section.type === 'education') &&
-        section.layout !== 'list'
-
-      let contentHtml = ''
-      if (section.type === 'photo') {
-        const clipped = section.photoAscii
-          ? clipAscii(section.photoAscii, section.photoHeight ?? 40)
-          : null
-        contentHtml = clipped
-          ? `<pre style="font-family:inherit;font-size:${Math.max(fs - 3, 8)}px;line-height:1;white-space:pre;background:${style.codeBgColor};padding:12px;border-radius:4px;margin:0">${escapeHtml(clipped)}</pre>`
-          : `<span style="color:${style.mutedColor};font-style:italic">&lt;!-- upload a photo to generate ASCII art --&gt;</span>`
-      } else if (isTimeline) {
-        contentHtml =
-          section.layout === 'horizontal'
-            ? renderTimelineHorizontal(section.content, style)
-            : renderTimelineVertical(section.content, style)
-      } else {
-        contentHtml = renderPlainContent(section.content, style)
-      }
-
-      return `
-      <div style="margin-bottom:28px">
-        <div style="font-size:${Math.round(fs * 1.1)}px;font-weight:700;color:${style.fgColor};letter-spacing:0.03em">## ${escapeHtml(section.title)}</div>
-        ${section.subtitle ? `<div style="color:${style.mutedColor};margin-top:2px">${escapeHtml(section.subtitle)}</div>` : ''}
-        <div style="color:${style.borderColor};margin-top:3px;letter-spacing:-1px">${'─'.repeat(56)}</div>
-        <div style="margin-top:8px">${contentHtml}</div>
-      </div>`
-    })
-    .join('')
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: ${style.fontFamily};
-    font-size: ${fs}px;
-    color: ${style.fgColor};
-    background: ${style.bgColor};
-    line-height: 1.6;
-    padding: 40px 48px;
-    max-width: 860px;
-    margin: 0 auto;
-  }
-</style>
-</head>
-<body>
-  <div style="margin-bottom:32px">
-    <div style="display:flex;gap:24px;align-items:flex-start">
-      <div style="flex:1">
-        <div style="font-size:${Math.round(fs * 2)}px;font-weight:700;color:${style.fgColor};letter-spacing:0.02em"># ${escapeHtml(meta.name)}</div>
-        ${meta.title ? `<div style="font-size:${Math.round(fs * 1.3)}px;color:${style.mutedColor};margin-top:4px">${escapeHtml(meta.title)}</div>` : ''}
-        <div style="margin-top:10px;line-height:1.8">${contactHtml}</div>
-      </div>
-      ${meta.photoAscii ? `<pre style="font-family:inherit;font-size:${Math.max(fs - 4, 7)}px;line-height:1;white-space:pre;color:${style.mutedColor};margin:0;flex-shrink:0">${escapeHtml(clipAscii(meta.photoAscii, meta.photoHeight ?? 25))}</pre>` : ''}
-    </div>
-    <div style="margin-top:12px;color:${style.borderColor};letter-spacing:-1px">${'═'.repeat(60)}</div>
-  </div>
-  ${sectionsHtml}
-</body>
-</html>`
+  )
 }
+
+// ── Route handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
     const cv: CV = await req.json()
-
-    const browser = await getBrowser()
-    const page = await browser.newPage()
-
-    await page.setContent(cvToHtml(cv), { waitUntil: 'networkidle0' })
-
-    const pdf = await page.pdf({
-      format: 'A4',
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-      printBackground: true,
-    })
-
-    await browser.close()
-
-    return new NextResponse(Buffer.from(pdf), {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buffer: Buffer = await ReactPDF.renderToBuffer(h(CVDocument, { cv }) as any)
+    return new NextResponse(buffer.buffer as ArrayBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="cv.pdf"',
+        'Content-Disposition': `attachment; filename="${cv.meta.name.replace(/\s+/g, '_')}_CV.pdf"`,
       },
     })
   } catch (err) {
