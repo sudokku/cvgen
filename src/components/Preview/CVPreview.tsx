@@ -8,8 +8,12 @@ interface Props {
   cv: CV
 }
 
-function rule(style: CVStyle, char = '─', len = 60): string {
-  return char.repeat(len)
+function Rule({ style, char = '─' }: { style: CVStyle; char?: string }) {
+  return (
+    <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', color: style.borderColor, letterSpacing: '-1px' }}>
+      {char.repeat(300)}
+    </div>
+  )
 }
 
 function PhotoPlaceholder({ cols, rows, style }: { cols: number; rows: number; style: CVStyle }) {
@@ -69,8 +73,8 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
             {section.subtitle}
           </div>
         )}
-        <div style={{ color: style.borderColor, marginTop: '3px', letterSpacing: '-1px' }}>
-          {rule(style, '─', 56)}
+        <div style={{ marginTop: '3px' }}>
+          <Rule style={style} char="─" />
         </div>
       </div>
 
@@ -323,14 +327,8 @@ export function CVPreview({ cv }: Props) {
           )}
         </div>{/* end flex row */}
 
-        <div
-          style={{
-            marginTop: '12px',
-            color: style.borderColor,
-            letterSpacing: '-1px',
-          }}
-        >
-          {rule(style, '═', 60)}
+        <div style={{ marginTop: '12px' }}>
+          <Rule style={style} char="═" />
         </div>
       </div>
 
