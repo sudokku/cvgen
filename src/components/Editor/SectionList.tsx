@@ -38,7 +38,7 @@ const ADD_OPTIONS: { label: string; type: SectionType }[] = [
   { label: 'Custom', type: 'custom' },
 ]
 
-function SortableItem({ section }: { section: CVSection }) {
+function SortableItem({ section, onSelect }: { section: CVSection; onSelect?: () => void }) {
   const { selectedSectionId, selectSection, deleteSection } = useCVStore()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: section.id,
@@ -59,7 +59,7 @@ function SortableItem({ section }: { section: CVSection }) {
       className={`group flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
         isSelected ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
       }`}
-      onClick={() => selectSection(section.id)}
+      onClick={() => { selectSection(section.id); onSelect?.() }}
     >
       {/* drag handle */}
       <span
@@ -91,7 +91,7 @@ function SortableItem({ section }: { section: CVSection }) {
   )
 }
 
-export function SectionList() {
+export function SectionList({ onSectionSelect }: { onSectionSelect?: () => void } = {}) {
   const { cv, addSection, reorderSections } = useCVStore()
   const { sections } = cv
 
@@ -116,7 +116,7 @@ export function SectionList() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             {sections.map((section) => (
-              <SortableItem key={section.id} section={section} />
+              <SortableItem key={section.id} section={section} onSelect={onSectionSelect} />
             ))}
           </SortableContext>
         </DndContext>
