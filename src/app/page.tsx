@@ -6,7 +6,7 @@ import { useCVStore } from '@/store/cv-store'
 import { MetaEditor } from '@/components/Editor/MetaEditor'
 import { SectionEditor } from '@/components/Editor/SectionEditor'
 import { StyleEditor } from '@/components/Editor/StyleEditor'
-import { CVPreview } from '@/components/Preview/CVPreview'
+import { ScaledPreview } from '@/components/Preview/ScaledPreview'
 import { printCV } from '@/lib/print-cv'
 
 // dnd-kit generates aria IDs that differ between SSR and client → skip SSR
@@ -82,7 +82,7 @@ export default function Home() {
             </button>
           </div>
           <div className="flex-1 overflow-auto" style={{ backgroundColor: cv.style.bgColor }}>
-            <CVPreview cv={cv} />
+            <ScaledPreview cv={cv} />
           </div>
         </div>
       </div>
@@ -161,7 +161,7 @@ export default function Home() {
                 </button>
               </div>
               <div className="flex-1 overflow-auto" style={{ backgroundColor: cv.style.bgColor }}>
-                <CVPreview cv={cv} />
+                <ScaledPreview cv={cv} />
               </div>
             </div>
           )}
