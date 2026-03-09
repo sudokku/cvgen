@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { CV, CVMeta, CVSection, CVStyle, DEFAULT_STYLE, SectionType } from '@/types/cv'
+import { CV, CVMeta, CVSection, CVStyle, DEFAULT_STYLE, DocMode, SectionType } from '@/types/cv'
 import { nanoid } from 'nanoid'
 
 const defaultMeta: CVMeta = {
@@ -48,6 +48,7 @@ interface CVStore {
   updateSection: (id: string, patch: Partial<CVSection>) => void
   reorderSections: (ids: string[]) => void
   selectSection: (id: string | null) => void
+  updateDocMode: (mode: DocMode) => void
 }
 
 function sectionDefaults(type: SectionType): Partial<CVSection> {
@@ -72,7 +73,7 @@ function sectionDefaults(type: SectionType): Partial<CVSection> {
 export const useCVStore = create<CVStore>()(
   persist(
     (set) => ({
-      cv: { meta: defaultMeta, sections: defaultSections, style: DEFAULT_STYLE },
+      cv: { meta: defaultMeta, sections: defaultSections, style: DEFAULT_STYLE, docMode: 'md' },
       selectedSectionId: defaultSections[0].id,
 
       updateMeta: (meta) =>
@@ -118,6 +119,9 @@ export const useCVStore = create<CVStore>()(
         }),
 
       selectSection: (id) => set({ selectedSectionId: id }),
+
+      updateDocMode: (mode) =>
+        set((s) => ({ cv: { ...s.cv, docMode: mode } })),
     }),
     {
       name: 'cvgen-store',
@@ -130,6 +134,7 @@ export const useCVStore = create<CVStore>()(
           cv: {
             ...current.cv,
             ...(p.cv ?? {}),
+            docMode: p.cv?.docMode ?? 'md',
             style: { ...DEFAULT_STYLE, ...(p.cv?.style ?? {}) },
           },
         }

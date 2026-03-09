@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from 'react'
 import { useCVStore } from '@/store/cv-store'
-import { CVSection, SectionType, TimelineLayout } from '@/types/cv'
+import { CVSection, RenderMode, SectionType, TimelineLayout } from '@/types/cv'
 import { useAsciiGenerator } from '@/lib/use-ascii'
 
 const TIMELINE_TYPES: SectionType[] = ['experience', 'education']
@@ -11,6 +11,7 @@ const DEFAULT_MAX_ROWS = 40
 
 export function SectionEditor() {
   const { cv, selectedSectionId, updateSection } = useCVStore()
+  const docMode = cv.docMode
   const section = cv.sections.find((s) => s.id === selectedSectionId)
   const fileRef = useRef<HTMLInputElement>(null)
   const generate = useAsciiGenerator()
@@ -95,6 +96,28 @@ export function SectionEditor() {
             className="bg-transparent border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-400"
           />
         </label>
+
+        {/* Per-section render mode — only in per-section doc mode */}
+        {docMode === 'per-section' && (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-mono text-gray-400 uppercase tracking-wide">Render</span>
+            <div className="flex gap-2">
+              {(['md', 'json'] as RenderMode[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => update({ renderMode: m })}
+                  className={`px-2 py-0.5 rounded text-xs font-mono border transition-colors ${
+                    (section.renderMode ?? 'md') === m
+                      ? 'border-blue-500 text-blue-400 bg-blue-950'
+                      : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {canUseTimeline && (
           <div className="flex flex-col gap-0.5">

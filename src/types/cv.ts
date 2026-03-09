@@ -1,3 +1,6 @@
+export type RenderMode = 'md' | 'json'
+export type DocMode   = 'md' | 'json' | 'per-section'
+
 export type SectionType =
   | 'experience'
   | 'education'
@@ -33,6 +36,7 @@ export interface CVSection {
   photoAscii?: string
   photoWidth?: number   // max ASCII cols (default 80); API fits aspect ratio within this bound
   photoHeight?: number  // max ASCII rows (default 40); API fits aspect ratio within this bound
+  renderMode?: RenderMode  // only used when CV.docMode === 'per-section'
 }
 
 export interface CVStyle {
@@ -44,6 +48,10 @@ export interface CVStyle {
   accentColor: string
   borderColor: string
   codeBgColor: string
+  jsonKeyColor: string
+  jsonStringColor: string
+  jsonNumberColor: string
+  jsonPunctuationColor: string
 }
 
 export const FONT_OPTIONS = [
@@ -83,6 +91,10 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#4493f8',
     borderColor: '#3d444d',
     codeBgColor: '#151b23',
+    jsonKeyColor: '#79c0ff',
+    jsonStringColor: '#a5d6ff',
+    jsonNumberColor: '#79c0ff',
+    jsonPunctuationColor: '#9198a1',
   },
   'github-light': {
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
@@ -93,6 +105,10 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#0969da',
     borderColor: '#d1d9e0',
     codeBgColor: '#f6f8fa',
+    jsonKeyColor: '#0550ae',
+    jsonStringColor: '#0a3069',
+    jsonNumberColor: '#0550ae',
+    jsonPunctuationColor: '#636c76',
   },
   'dracula': {
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
@@ -103,6 +119,10 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#50fa7b',
     borderColor: '#44475a',
     codeBgColor: '#1e1f29',
+    jsonKeyColor: '#8be9fd',
+    jsonStringColor: '#f1fa8c',
+    jsonNumberColor: '#bd93f9',
+    jsonPunctuationColor: '#6272a4',
   },
   'nord': {
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
@@ -113,6 +133,10 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#88c0d0',
     borderColor: '#3b4252',
     codeBgColor: '#242932',
+    jsonKeyColor: '#81a1c1',
+    jsonStringColor: '#a3be8c',
+    jsonNumberColor: '#b48ead',
+    jsonPunctuationColor: '#7b88a1',
   },
 }
 
@@ -122,4 +146,5 @@ export interface CV {
   meta: CVMeta
   sections: CVSection[]
   style: CVStyle
+  docMode: DocMode
 }

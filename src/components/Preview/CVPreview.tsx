@@ -1,8 +1,9 @@
 'use client'
 
-import { CV, CVSection, CVStyle } from '@/types/cv'
+import { CV, CVSection, CVStyle, DocMode, RenderMode } from '@/types/cv'
 import { TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
+import { JsonSectionBlock, JKey, JStr, JPunct } from './JsonSectionBlock'
 
 interface Props {
   cv: CV
@@ -228,6 +229,40 @@ function parseInline(line: string, style: CVStyle): React.ReactNode[] {
   return tokens
 }
 
+function effectiveMode(docMode: DocMode, section: CVSection): RenderMode {
+  if (docMode === 'json') return 'json'
+  if (docMode === 'md')   return 'md'
+  return section.renderMode ?? 'md'
+}
+
+function JsonHeaderBlock({ cv }: { cv: CV }) {
+  const { meta, style } = cv
+  const fields: [string, string][] = [
+    ['name',     meta.name],
+    ['title',    meta.title],
+    ['email',    meta.email],
+    ...(meta.github   ? [['github',   meta.github]   as [string, string]] : []),
+    ...(meta.linkedin ? [['linkedin', meta.linkedin] as [string, string]] : []),
+    ...(meta.website  ? [['website',  meta.website]  as [string, string]] : []),
+    ...(meta.location ? [['location', meta.location] as [string, string]] : []),
+  ]
+
+  return (
+    <div style={{ marginBottom: '28px', fontFamily: 'inherit', fontSize: `${style.fontSize}px`, lineHeight: 1.6 }}>
+      <div style={{ whiteSpace: 'pre' }}><JPunct text="{" style={style} /></div>
+      {fields.map(([k, v], i) => (
+        <div key={k} style={{ whiteSpace: 'pre' }}>
+          {'  '}<JKey text={k} style={style} /><JPunct text=": " style={style} /><JPunct text='"' style={style} /><JStr style={style}>{v}</JStr><JPunct text={i < fields.length - 1 ? '",' : '"'} style={style} />
+        </div>
+      ))}
+      <div style={{ whiteSpace: 'pre' }}><JPunct text="}" style={style} /></div>
+      <div style={{ marginTop: '12px' }}>
+        <Rule style={style} char="═" />
+      </div>
+    </div>
+  )
+}
+
 export function CVPreview({ cv }: Props) {
   const { meta, sections, style } = cv
 
@@ -255,7 +290,9 @@ export function CVPreview({ cv }: Props) {
       }}
     >
       {/* ── Header ── */}
-      <div style={{ marginBottom: '32px' }}>
+      {cv.docMode === 'json'
+        ? <JsonHeaderBlock cv={cv} />
+        : <div style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
           {/* left: name + contact */}
           <div style={{ flex: 1 }}>
@@ -331,11 +368,28 @@ export function CVPreview({ cv }: Props) {
           <Rule style={style} char="═" />
         </div>
       </div>
+      }
 
       {/* ── Sections ── */}
-      {sections.map((section) => (
-        <SectionBlock key={section.id} section={section} style={style} />
-      ))}
+      {cv.docMode === 'json' && (
+        <div>
+          {sections.map((section, i) => (
+            <JsonSectionBlock
+              key={section.id}
+              section={section}
+              style={style}
+              isFirst={i === 0}
+              isLast={i === sections.length - 1}
+            />
+          ))}
+        </div>
+      )}
+      {cv.docMode !== 'json' && sections.map((section, i) => {
+        const mode = effectiveMode(cv.docMode, section)
+        return mode === 'json'
+          ? <JsonSectionBlock key={section.id} section={section} style={style} isFirst={i === 0} isLast={i === sections.length - 1} />
+          : <SectionBlock key={section.id} section={section} style={style} />
+      })}
     </div>
   )
 }

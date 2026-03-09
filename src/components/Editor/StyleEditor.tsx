@@ -1,11 +1,12 @@
 'use client'
 
 import { useCVStore } from '@/store/cv-store'
-import { CVStyle, FONT_OPTIONS, STYLE_PRESETS } from '@/types/cv'
+import { CVStyle, DocMode, FONT_OPTIONS, STYLE_PRESETS } from '@/types/cv'
 
 export function StyleEditor() {
-  const { cv, updateStyle } = useCVStore()
+  const { cv, updateStyle, updateDocMode } = useCVStore()
   const { style } = cv
+  const docMode = cv.docMode
 
   const colorField = (label: string, key: keyof CVStyle) => (
     <label className="flex items-center justify-between gap-2" key={key}>
@@ -30,6 +31,26 @@ export function StyleEditor() {
 
   return (
     <div className="p-3 space-y-4 overflow-y-auto">
+      {/* Render mode */}
+      <div>
+        <p className="text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Render Mode</p>
+        <div className="flex gap-1">
+          {(['md', 'json', 'per-section'] as DocMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => updateDocMode(m)}
+              className={`flex-1 px-2 py-1 rounded text-xs font-mono border transition-colors ${
+                docMode === m
+                  ? 'border-blue-500 text-blue-400 bg-blue-950'
+                  : 'border-gray-700 text-gray-500 hover:border-gray-500'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Presets */}
       <div>
         <p className="text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Presets</p>
@@ -92,6 +113,19 @@ export function StyleEditor() {
           {colorField('code bg', 'codeBgColor')}
         </div>
       </div>
+
+      {/* JSON colors — only shown when relevant */}
+      {(docMode === 'json' || docMode === 'per-section') && (
+        <div>
+          <p className="text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">JSON Colors</p>
+          <div className="space-y-2">
+            {colorField('key', 'jsonKeyColor')}
+            {colorField('string', 'jsonStringColor')}
+            {colorField('number', 'jsonNumberColor')}
+            {colorField('punctuation', 'jsonPunctuationColor')}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
