@@ -145,6 +145,11 @@ export function TimelineSection({ content, layout, style }: Props) {
                 {l && <span style={{ color: style.mutedColor }}>{l}</span>}
               </PreLine>
             ))}
+
+            {/* │  trailing gap after description before next entry */}
+            {!isLast && (
+              <PreLine prefix={pipe} prefixColor={style.mutedColor} />
+            )}
           </div>
         )
       })}
