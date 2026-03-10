@@ -243,15 +243,15 @@ function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
               </WrappableLine>
             )}
             {hasStack && (
-              <>
-                <Line>{I2}<JKey text="stack" style={style} /><JPunct text=": [" style={style} /></Line>
+              <WrappableLine indent={I2}>
+                <JKey text="stack" style={style} /><JPunct text=": [" style={style} />
                 {stack.map((item, si) => (
-                  <WrappableLine key={si} indent={I3}>
-                    <JStringValue text={item} style={style} trailing={si < stack.length - 1 ? ',' : ''} />
-                  </WrappableLine>
+                  <span key={si}>
+                    <JStringValue text={item} style={style} trailing={si < stack.length - 1 ? ', ' : ''} />
+                  </span>
                 ))}
-                <Line>{I2}<JPunct text="]" style={style} /></Line>
-              </>
+                <JPunct text="]" style={style} />
+              </WrappableLine>
             )}
             <Line>{I1}<JPunct text={isLast ? '}' : '},'} style={style} /></Line>
           </div>
