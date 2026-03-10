@@ -80,11 +80,43 @@ function parseSkillLines(content: string): SkillLine[] {
     })
 }
 
+// ── Project description parser ──────────────────────────────────────────────
+// Splits "Stack: item1, item2" out of description text.
+
+function parseProjectDescription(text: string): { description: string; stack: string[] } {
+  const stackMatch = text.match(/\.?\s*Stack:\s*([^\n]+)/i)
+  if (!stackMatch) return { description: text.trim(), stack: [] }
+  const stack = stackMatch[1].replace(/\.$/, '').split(',').map((s) => s.trim()).filter(Boolean)
+  const description = text.replace(/\.?\s*Stack:\s*[^\n]+/i, '').trim()
+  return { description, stack }
+}
+
 // ── Indentation helper ──────────────────────────────────────────────────────
 
 const I1 = '  '   // 2 spaces
 const I2 = '    ' // 4 spaces
 const I3 = '      ' // 6 spaces
+
+// ── Line wrappers ───────────────────────────────────────────────────────────
+
+// Structural line: no wrapping (for brackets, keys with objects/arrays)
+function Line({ children }: { children: React.ReactNode }) {
+  return <div style={{ whiteSpace: 'pre' }}>{children}</div>
+}
+
+// Content line: wraps long values, continuation lines align to the indent level
+function WrappableLine({ indent = '', children }: { indent?: string; children?: React.ReactNode }) {
+  return (
+    <div style={{
+      paddingLeft: `${indent.length}ch`,
+      whiteSpace: 'pre-wrap',
+      overflowWrap: 'break-word',
+      wordBreak: 'break-word',
+    }}>
+      {children}
+    </div>
+  )
+}
 
 // ── Section renderers ───────────────────────────────────────────────────────
 
@@ -118,18 +150,18 @@ function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
         return (
           <div key={ei}>
             <Line>{I1}<JPunct text="{" style={style} /></Line>
-            <Line>{I2}<JKey text={primaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={primaryVal} style={style} trailing="," /></Line>
+            <WrappableLine indent={I2}><JKey text={primaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={primaryVal} style={style} trailing="," /></WrappableLine>
             {secondaryVal && (
-              <Line>{I2}<JKey text={secondaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={secondaryVal} style={style} trailing="," /></Line>
+              <WrappableLine indent={I2}><JKey text={secondaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={secondaryVal} style={style} trailing="," /></WrappableLine>
             )}
             {entry.period && (
-              <Line>{I2}<JKey text="period" style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.period} style={style} trailing={highlights.length ? ',' : ''} /></Line>
+              <WrappableLine indent={I2}><JKey text="period" style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.period} style={style} trailing={highlights.length ? ',' : ''} /></WrappableLine>
             )}
             {highlights.length > 0 && (
               <>
                 <Line>{I2}<JKey text="highlights" style={style} /><JPunct text=": [" style={style} /></Line>
                 {highlights.map((h, hi) => (
-                  <Line key={hi}>{I3}<JStringValue text={h} style={style} trailing={hi < highlights.length - 1 ? ',' : ''} /></Line>
+                  <WrappableLine key={hi} indent={I3}><JStringValue text={h} style={style} trailing={hi < highlights.length - 1 ? ',' : ''} /></WrappableLine>
                 ))}
                 <Line>{I2}<JPunct text="]" style={style} /></Line>
               </>
@@ -158,7 +190,7 @@ function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
             <div key={li}>
               <Line>{I1}<JKey text={line.category!} style={style} /><JPunct text=": [" style={style} /></Line>
               {line.items.map((item, ii) => (
-                <Line key={ii}>{I2}<JStringValue text={item} style={style} trailing={ii < line.items.length - 1 ? ',' : ''} /></Line>
+                <WrappableLine key={ii} indent={I2}><JStringValue text={item} style={style} trailing={ii < line.items.length - 1 ? ',' : ''} /></WrappableLine>
               ))}
               <Line>{I1}<JPunct text={isLast ? ']' : '],'} style={style} /></Line>
             </div>
@@ -175,7 +207,7 @@ function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
     <div>
       <Line><JKey text={section.title.toLowerCase()} style={style} /><JPunct text=": [" style={style} /></Line>
       {allItems.map((item, ii) => (
-        <Line key={ii}>{I1}<JStringValue text={item} style={style} trailing={ii < allItems.length - 1 ? ',' : ''} /></Line>
+        <WrappableLine key={ii} indent={I1}><JStringValue text={item} style={style} trailing={ii < allItems.length - 1 ? ',' : ''} /></WrappableLine>
       ))}
       <Line><JPunct text="]" style={style} /></Line>
     </div>
@@ -185,7 +217,6 @@ function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
 function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
   const entries = parseTimelineEntries(section.content)
   if (entries.length === 0) {
-    // Plain content fallback
     return renderPlain(section, style)
   }
 
@@ -193,17 +224,31 @@ function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
     <div>
       <Line><JKey text="projects" style={style} /><JPunct text=": [" style={style} /></Line>
       {entries.map((entry, ei) => {
-        const highlights = entry.description.split('\n').map((l) => l.trim()).filter(Boolean)
         const isLast = ei === entries.length - 1
+        const { description, stack } = parseProjectDescription(entry.description)
+        const hasDescription = description.length > 0
+        const hasStack = stack.length > 0
+
         return (
           <div key={ei}>
             <Line>{I1}<JPunct text="{" style={style} /></Line>
-            <Line>{I2}<JKey text="name" style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.role} style={style} trailing={highlights.length ? ',' : ''} /></Line>
-            {highlights.length > 0 && (
+            <WrappableLine indent={I2}>
+              <JKey text="name" style={style} /><JPunct text=": " style={style} />
+              <JStringValue text={entry.role} style={style} trailing={hasDescription || hasStack ? ',' : ''} />
+            </WrappableLine>
+            {hasDescription && (
+              <WrappableLine indent={I2}>
+                <JKey text="description" style={style} /><JPunct text=": " style={style} />
+                <JStringValue text={description} style={style} trailing={hasStack ? ',' : ''} />
+              </WrappableLine>
+            )}
+            {hasStack && (
               <>
-                <Line>{I2}<JKey text="description" style={style} /><JPunct text=": [" style={style} /></Line>
-                {highlights.map((h, hi) => (
-                  <Line key={hi}>{I3}<JStringValue text={h} style={style} trailing={hi < highlights.length - 1 ? ',' : ''} /></Line>
+                <Line>{I2}<JKey text="stack" style={style} /><JPunct text=": [" style={style} /></Line>
+                {stack.map((item, si) => (
+                  <WrappableLine key={si} indent={I3}>
+                    <JStringValue text={item} style={style} trailing={si < stack.length - 1 ? ',' : ''} />
+                  </WrappableLine>
                 ))}
                 <Line>{I2}<JPunct text="]" style={style} /></Line>
               </>
@@ -235,26 +280,20 @@ function renderPhoto(section: CVSection, style: CVStyle): React.ReactNode {
 function renderPlain(section: CVSection, style: CVStyle): React.ReactNode {
   const lines = section.content.split('\n').map((l) => l.trim()).filter(Boolean)
   if (lines.length === 0) {
-    return <Line><JKey text={section.title.toLowerCase()} style={style} /><JPunct text=": " style={style} /><JStringValue text="" style={style} /></Line>
+    return <WrappableLine><JKey text={section.title.toLowerCase()} style={style} /><JPunct text=": " style={style} /><JStringValue text="" style={style} /></WrappableLine>
   }
   if (lines.length === 1) {
-    return <Line><JKey text={section.title.toLowerCase()} style={style} /><JPunct text=": " style={style} /><JStringValue text={lines[0]} style={style} /></Line>
+    return <WrappableLine><JKey text={section.title.toLowerCase()} style={style} /><JPunct text=": " style={style} /><JStringValue text={lines[0]} style={style} /></WrappableLine>
   }
   return (
     <div>
       <Line><JKey text={section.title.toLowerCase()} style={style} /><JPunct text=": [" style={style} /></Line>
       {lines.map((line, li) => (
-        <Line key={li}>{I1}<JStringValue text={line} style={style} trailing={li < lines.length - 1 ? ',' : ''} /></Line>
+        <WrappableLine key={li} indent={I1}><JStringValue text={line} style={style} trailing={li < lines.length - 1 ? ',' : ''} /></WrappableLine>
       ))}
       <Line><JPunct text="]" style={style} /></Line>
     </div>
   )
-}
-
-// ── Line wrapper ────────────────────────────────────────────────────────────
-
-function Line({ children }: { children: React.ReactNode }) {
-  return <div style={{ whiteSpace: 'pre' }}>{children}</div>
 }
 
 // ── Public component ────────────────────────────────────────────────────────

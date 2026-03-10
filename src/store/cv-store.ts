@@ -60,7 +60,7 @@ function sectionDefaults(type: SectionType): Partial<CVSection> {
     case 'skills':
       return { title: 'Skills', layout: 'list', content: 'Languages:   skill1 · skill2 · skill3\nTools:       tool1 · tool2 · tool3' }
     case 'projects':
-      return { title: 'Projects', layout: 'list', content: '### Project Name\nBrief description. Stack: TypeScript, React.' }
+      return { title: 'Projects', layout: 'list', content: '### Project Name\nBrief description of what you built. Stack: TypeScript, React, Node.js' }
     case 'photo':
       return { title: 'Photo', layout: 'list', content: '' }
     case 'custom':
