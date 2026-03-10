@@ -366,9 +366,6 @@ export function CVPreview({ cv }: Props) {
           )}
         </div>{/* end flex row */}
 
-        <div style={{ marginTop: '12px' }}>
-          <Rule style={style} char="═" />
-        </div>
       </div>
       }
 

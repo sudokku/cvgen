@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { parseTimelineEntries } from '@/lib/timeline-parser'
 import { CVStyle, TimelineLayout } from '@/types/cv'
 
@@ -62,42 +63,48 @@ export function TimelineSection({ content, layout, style }: Props) {
   }
 
   // vertical ASCII tree
+  const line = (content: React.ReactNode, color = style.mutedColor) => (
+    <div style={{ color, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{content}</div>
+  )
+
   return (
     <div>
       {entries.map((entry, i) => {
         const isLast = i === entries.length - 1
         const prefix = isLast ? '└─' : '├─'
-        const continuation = isLast ? '  ' : '│ '
-        const period = entry.period ? ` ${entry.period.padEnd(14)}` : '               '
+        const descLines = entry.description
+          ? entry.description.split('\n').filter((l) => l.trim())
+          : []
 
         return (
-          <div key={i} style={{ fontFamily: 'inherit', marginBottom: isLast ? 0 : '2px' }}>
-            {/* header line */}
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <span style={{ color: style.mutedColor, flexShrink: 0 }}>{prefix}</span>
-              {entry.period && (
-                <span style={{ color: style.accentColor, flexShrink: 0 }}>{period.trim()}</span>
-              )}
-              <span style={{ color: style.fgColor, fontWeight: 600 }}>{entry.role}</span>
-              {entry.company && (
-                <span style={{ color: style.mutedColor }}>@ {entry.company}</span>
-              )}
-            </div>
-            {/* description indented under connector */}
-            {entry.description && (
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <span style={{ color: style.mutedColor, flexShrink: 0 }}>{continuation}</span>
-                <span
-                  style={{ color: style.mutedColor, whiteSpace: 'pre-wrap', flex: 1 }}
-                >
-                  {entry.description}
-                </span>
-              </div>
+          <div key={i}>
+            {/* branch symbol */}
+            {line(prefix)}
+
+            {/* period */}
+            {entry.period && line(entry.period, style.accentColor)}
+
+            {/* role */}
+            {line(entry.role, style.fgColor)}
+
+            {/* company */}
+            {entry.company && line(`@ ${entry.company}`)}
+
+            {/* description lines, each prefixed with │ */}
+            {descLines.length > 0 && (
+              <>
+                {line('│')}
+                {descLines.map((l, li) => (
+                  <div key={li} style={{ display: 'flex', gap: '4px' }}>
+                    <span style={{ color: style.mutedColor, flexShrink: 0 }}>│</span>
+                    <span style={{ color: style.mutedColor, whiteSpace: 'pre-wrap', flex: 1 }}>{l}</span>
+                  </div>
+                ))}
+              </>
             )}
-            {/* spacing line between entries */}
-            {!isLast && (
-              <div style={{ color: style.mutedColor }}>{continuation}</div>
-            )}
+
+            {/* connector to next entry */}
+            {!isLast && line('│')}
           </div>
         )
       })}
