@@ -244,6 +244,7 @@ function JsonHeaderBlock({ cv }: { cv: CV }) {
     ...(meta.github   ? [['github',   meta.github]   as [string, string]] : []),
     ...(meta.linkedin ? [['linkedin', meta.linkedin] as [string, string]] : []),
     ...(meta.website  ? [['website',  meta.website]  as [string, string]] : []),
+    ...(meta.phone    ? [['phone',    meta.phone]    as [string, string]] : []),
     ...(meta.location ? [['location', meta.location] as [string, string]] : []),
   ]
 
@@ -271,6 +272,7 @@ export function CVPreview({ cv }: Props) {
     meta.github   ? { label: `github.com/${meta.github}`,         href: `https://github.com/${meta.github}` }             : null,
     meta.linkedin ? { label: `linkedin.com/in/${meta.linkedin}`,  href: `https://linkedin.com/in/${meta.linkedin}` }      : null,
     meta.website  ? { label: meta.website,                        href: meta.website.startsWith('http') ? meta.website : `https://${meta.website}` } : null,
+    meta.phone    ? { label: meta.phone,                          href: `tel:${meta.phone}` }                             : null,
     meta.location ? { label: meta.location,                       href: '' }                                               : null,
   ].filter(Boolean) as { label: string; href: string }[]
 

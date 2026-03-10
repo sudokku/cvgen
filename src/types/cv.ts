@@ -18,6 +18,7 @@ export interface CVMeta {
   github?: string
   linkedin?: string
   website?: string
+  phone?: string
   location?: string
   photoUrl?: string
   photoAscii?: string

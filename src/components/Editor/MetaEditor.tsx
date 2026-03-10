@@ -165,6 +165,7 @@ export function MetaEditor() {
       {field('GitHub', 'github', 'username')}
       {field('LinkedIn', 'linkedin', 'username')}
       {field('Website', 'website', 'https://yoursite.com')}
+      {field('Phone', 'phone', '+1 234 567 8900', 'tel')}
       {field('Location', 'location', 'City, Country')}
     </div>
   )
