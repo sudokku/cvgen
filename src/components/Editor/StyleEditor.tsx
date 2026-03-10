@@ -30,7 +30,7 @@ export function StyleEditor() {
   )
 
   return (
-    <div className="p-3 space-y-4 overflow-y-auto">
+    <div className="p-3 space-y-4 overflow-y-auto h-full">
       {/* Render mode */}
       <div>
         <p className="text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Render Mode</p>
@@ -126,6 +126,20 @@ export function StyleEditor() {
           </div>
         </div>
       )}
+
+      {/* Semantic Colors */}
+      <div>
+        <p className="text-xs font-mono text-gray-500 uppercase tracking-wider mb-1.5">Semantic Colors</p>
+        <div className="space-y-2">
+          {colorField('heading', 'headingColor')}
+          {colorField('subtitle', 'subtitleColor')}
+          {colorField('period', 'periodColor')}
+          {colorField('role / degree', 'roleColor')}
+          {colorField('company', 'companyColor')}
+          {colorField('category', 'categoryColor')}
+          {colorField('project title', 'projectTitleColor')}
+        </div>
+      </div>
     </div>
   )
 }

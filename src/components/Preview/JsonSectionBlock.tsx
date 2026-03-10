@@ -4,8 +4,8 @@ import { parseTimelineEntries } from '@/lib/timeline-parser'
 
 // ── Token span helpers ──────────────────────────────────────────────────────
 
-export function JKey({ text, style }: { text: string; style: CVStyle }) {
-  return <span style={{ color: style.jsonKeyColor }}>"{text}"</span>
+export function JKey({ text, style, color }: { text: string; style: CVStyle; color?: string }) {
+  return <span style={{ color: color ?? style.jsonKeyColor }}>"{text}"</span>
 }
 
 export function JStr({ children, style }: { children: React.ReactNode; style: CVStyle }) {
@@ -23,7 +23,8 @@ export function JNum({ value, style }: { value: number; style: CVStyle }) {
 // ── Inline markdown inside a JSON string value ──────────────────────────────
 // Strips ** and ` markers, applies weight/bg but keeps the string color.
 
-function JStringContent({ text, style }: { text: string; style: CVStyle }) {
+function JStringContent({ text, style, color }: { text: string; style: CVStyle; color?: string }) {
+  const c = color ?? style.jsonStringColor
   const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`)/g
   const tokens: React.ReactNode[] = []
   let last = 0
@@ -31,28 +32,28 @@ function JStringContent({ text, style }: { text: string; style: CVStyle }) {
 
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) {
-      tokens.push(<span key={`t-${last}`} style={{ color: style.jsonStringColor }}>{text.slice(last, match.index)}</span>)
+      tokens.push(<span key={`t-${last}`} style={{ color: c }}>{text.slice(last, match.index)}</span>)
     }
     if (match[0].startsWith('**')) {
-      tokens.push(<span key={`b-${match.index}`} style={{ color: style.jsonStringColor, fontWeight: 700 }}>{match[2]}</span>)
+      tokens.push(<span key={`b-${match.index}`} style={{ color: c, fontWeight: 700 }}>{match[2]}</span>)
     } else {
-      tokens.push(<span key={`c-${match.index}`} style={{ color: style.jsonStringColor, backgroundColor: style.codeBgColor, padding: '0 2px', borderRadius: '2px' }}>{match[3]}</span>)
+      tokens.push(<span key={`c-${match.index}`} style={{ color: c, backgroundColor: style.codeBgColor, padding: '0 2px', borderRadius: '2px' }}>{match[3]}</span>)
     }
     last = match.index + match[0].length
   }
   if (last < text.length) {
-    tokens.push(<span key="t-end" style={{ color: style.jsonStringColor }}>{text.slice(last)}</span>)
+    tokens.push(<span key="t-end" style={{ color: c }}>{text.slice(last)}</span>)
   }
 
   return <>{tokens}</>
 }
 
 // A full quoted JSON string with inline markdown support
-function JStringValue({ text, style, trailing = '' }: { text: string; style: CVStyle; trailing?: string }) {
+function JStringValue({ text, style, trailing = '', color }: { text: string; style: CVStyle; trailing?: string; color?: string }) {
   return (
     <span>
       <JPunct text='"' style={style} />
-      <JStringContent text={text} style={style} />
+      <JStringContent text={text} style={style} color={color} />
       <JPunct text={`"${trailing}`} style={style} />
     </span>
   )
@@ -150,12 +151,12 @@ function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
         return (
           <div key={ei}>
             <Line>{I1}<JPunct text="{" style={style} /></Line>
-            <WrappableLine indent={I2}><JKey text={primaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={primaryVal} style={style} trailing="," /></WrappableLine>
+            <WrappableLine indent={I2}><JKey text={primaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={primaryVal} style={style} trailing="," color={style.roleColor} /></WrappableLine>
             {secondaryVal && (
-              <WrappableLine indent={I2}><JKey text={secondaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={secondaryVal} style={style} trailing="," /></WrappableLine>
+              <WrappableLine indent={I2}><JKey text={secondaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={secondaryVal} style={style} trailing="," color={style.companyColor} /></WrappableLine>
             )}
             {entry.period && (
-              <WrappableLine indent={I2}><JKey text="period" style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.period} style={style} trailing={highlights.length ? ',' : ''} /></WrappableLine>
+              <WrappableLine indent={I2}><JKey text="period" style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.period} style={style} trailing={highlights.length ? ',' : ''} color={style.periodColor} /></WrappableLine>
             )}
             {highlights.length > 0 && (
               <>
@@ -188,7 +189,7 @@ function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
           const isLast = li === lines.length - 1
           return (
             <div key={li}>
-              <Line>{I1}<JKey text={line.category!} style={style} /><JPunct text=": [" style={style} /></Line>
+              <Line>{I1}<JKey text={line.category!} style={style} color={style.categoryColor} /><JPunct text=": [" style={style} /></Line>
               {line.items.map((item, ii) => (
                 <WrappableLine key={ii} indent={I2}><JStringValue text={item} style={style} trailing={ii < line.items.length - 1 ? ',' : ''} /></WrappableLine>
               ))}
@@ -234,7 +235,7 @@ function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
             <Line>{I1}<JPunct text="{" style={style} /></Line>
             <WrappableLine indent={I2}>
               <JKey text="name" style={style} /><JPunct text=": " style={style} />
-              <JStringValue text={entry.role} style={style} trailing={hasDescription || hasStack ? ',' : ''} />
+              <JStringValue text={entry.role} style={style} trailing={hasDescription || hasStack ? ',' : ''} color={style.projectTitleColor} />
             </WrappableLine>
             {hasDescription && (
               <WrappableLine indent={I2}>

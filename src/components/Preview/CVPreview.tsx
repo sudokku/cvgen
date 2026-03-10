@@ -49,11 +49,31 @@ function PhotoPlaceholder({ cols, rows, style }: { cols: number; rows: number; s
 }
 
 function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }) {
+  const effectiveStyle = section.sectionColors
+    ? { ...style, ...section.sectionColors }
+    : style
+
   const isTimeline =
     (section.type === 'experience' || section.type === 'education') &&
     section.layout !== 'list'
 
-  const headingSize = Math.round(style.fontSize * 1.1)
+  const headingSize = Math.round(effectiveStyle.fontSize * 1.1)
+
+  const h3Color = section.type === 'projects'
+    ? effectiveStyle.projectTitleColor
+    : (section.type === 'experience' || section.type === 'education')
+    ? effectiveStyle.roleColor
+    : effectiveStyle.fgColor
+
+  const preStyle: React.CSSProperties = {
+    fontFamily: 'inherit',
+    fontSize: `${effectiveStyle.fontSize}px`,
+    color: effectiveStyle.fgColor,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    margin: 0,
+    lineHeight: 1.6,
+  }
 
   return (
     <div style={{ marginBottom: '28px' }}>
@@ -63,19 +83,19 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
           style={{
             fontSize: `${headingSize}px`,
             fontWeight: 700,
-            color: style.fgColor,
+            color: effectiveStyle.headingColor,
             letterSpacing: '0.03em',
           }}
         >
           ## {section.title}
         </div>
         {section.subtitle && (
-          <div style={{ color: style.mutedColor, marginTop: '2px' }}>
+          <div style={{ color: effectiveStyle.subtitleColor, marginTop: '2px' }}>
             {section.subtitle}
           </div>
         )}
         <div style={{ marginTop: '3px' }}>
-          <Rule style={style} char="─" />
+          <Rule style={effectiveStyle} char="─" />
         </div>
       </div>
 
@@ -86,12 +106,12 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
             <pre
               style={{
                 fontFamily: 'inherit',
-                fontSize: `${Math.max(style.fontSize - 3, 8)}px`,
+                fontSize: `${Math.max(effectiveStyle.fontSize - 3, 8)}px`,
                 lineHeight: 1,
-                color: style.mutedColor,
+                color: effectiveStyle.mutedColor,
                 margin: 0,
                 whiteSpace: 'pre',
-                backgroundColor: style.codeBgColor,
+                backgroundColor: effectiveStyle.codeBgColor,
                 padding: '12px',
                 borderRadius: '4px',
               }}
@@ -99,7 +119,7 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
               {clipAscii(section.photoAscii, section.photoHeight ?? 40)}
             </pre>
           ) : (
-            <span style={{ color: style.mutedColor, fontStyle: 'italic' }}>
+            <span style={{ color: effectiveStyle.mutedColor, fontStyle: 'italic' }}>
               {`<!-- upload a photo to generate ASCII art -->`}
             </span>
           )}
@@ -111,28 +131,53 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
         <TimelineSection
           content={section.content}
           layout={section.layout ?? 'vertical'}
-          style={style}
+          style={effectiveStyle}
         />
       )}
 
-      {/* Plain content (pre-formatted, markdown-raw) */}
-      {!isTimeline && section.type !== 'photo' && (
-        <pre
-          style={{
-            fontFamily: 'inherit',
-            fontSize: `${style.fontSize}px`,
-            color: style.fgColor,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            margin: 0,
-            lineHeight: 1.6,
-          }}
-        >
-          {renderInlineMarkdown(section.content, style)}
+      {/* Plain content — skills */}
+      {!isTimeline && section.type !== 'photo' && section.type === 'skills' && (
+        <pre style={preStyle}>
+          {renderSkillsContent(section.content, effectiveStyle)}
+        </pre>
+      )}
+
+      {/* Plain content — non-skills */}
+      {!isTimeline && section.type !== 'photo' && section.type !== 'skills' && (
+        <pre style={preStyle}>
+          {renderInlineMarkdown(section.content, effectiveStyle, h3Color)}
         </pre>
       )}
     </div>
   )
+}
+
+/**
+ * Skills-specific renderer that colors the category label (text before `:`)
+ * with categoryColor.
+ */
+function renderSkillsContent(content: string, style: CVStyle): React.ReactNode[] {
+  const lines = content.split('\n')
+  return lines.map((line, li) => {
+    const colonIdx = line.indexOf(':')
+    const nodes: React.ReactNode[] = []
+    if (colonIdx > 0 && !line.startsWith('#')) {
+      const category = line.slice(0, colonIdx)
+      const rest = line.slice(colonIdx)
+      nodes.push(
+        <span key="cat" style={{ color: style.categoryColor, fontWeight: 600 }}>{category}</span>,
+        <span key="rest" style={{ color: style.fgColor }}>{rest}</span>
+      )
+    } else {
+      nodes.push(...parseInline(line, style))
+    }
+    return (
+      <span key={li}>
+        {nodes}
+        {li < lines.length - 1 ? '\n' : ''}
+      </span>
+    )
+  })
 }
 
 /**
@@ -142,11 +187,12 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
  */
 function renderInlineMarkdown(
   text: string,
-  style: CVStyle
+  style: CVStyle,
+  h3Color?: string
 ): React.ReactNode[] {
   const lines = text.split('\n')
   return lines.map((line, li) => {
-    const parts = parseInline(line, style)
+    const parts = parseInline(line, style, h3Color)
     return (
       <span key={li}>
         {parts}
@@ -156,18 +202,18 @@ function renderInlineMarkdown(
   })
 }
 
-function parseInline(line: string, style: CVStyle): React.ReactNode[] {
+function parseInline(line: string, style: CVStyle, h3Color?: string): React.ReactNode[] {
   // Handle ### headings
   if (line.startsWith('### ')) {
     return [
-      <span key="h3" style={{ color: style.fgColor, fontWeight: 600 }}>
+      <span key="h3" style={{ color: h3Color ?? style.fgColor, fontWeight: 600 }}>
         {line}
       </span>,
     ]
   }
   if (line.startsWith('## ')) {
     return [
-      <span key="h2" style={{ color: style.fgColor, fontWeight: 700 }}>
+      <span key="h2" style={{ color: style.headingColor, fontWeight: 700 }}>
         {line}
       </span>,
     ]

@@ -71,7 +71,7 @@ export function TimelineSection({ content, layout, style }: Props) {
             const connector = i < entries.length - 1 ? '────────' : ''
             return (
               <span key={i} style={{ color: style.mutedColor }}>
-                <span style={{ color: style.accentColor }}>{label}</span>
+                <span style={{ color: style.periodColor }}>{label}</span>
                 {connector}
               </span>
             )
@@ -80,8 +80,8 @@ export function TimelineSection({ content, layout, style }: Props) {
         <div style={{ display: 'flex', alignItems: 'flex-start', marginTop: '6px' }}>
           {entries.map((entry, i) => (
             <div key={i} style={{ minWidth: '160px', paddingRight: '8px', fontSize: `${style.fontSize}px` }}>
-              <div style={{ color: style.fgColor, fontWeight: 600 }}>{entry.role}</div>
-              {entry.company && <div style={{ color: style.mutedColor }}>@ {entry.company}</div>}
+              <div style={{ color: style.roleColor, fontWeight: 600 }}>{entry.role}</div>
+              {entry.company && <div style={{ color: style.companyColor }}>@ {entry.company}</div>}
               {entry.description && (
                 <div style={{ color: style.mutedColor, marginTop: '2px', whiteSpace: 'pre-wrap' }}>
                   {entry.description}
@@ -123,14 +123,14 @@ export function TimelineSection({ content, layout, style }: Props) {
           <div key={i}>
             {/* ├─ period */}
             <PreLine prefix={branch} prefixColor={style.mutedColor}>
-              <span style={{ color: style.accentColor }}>{entry.period}</span>
+              <span style={{ color: style.periodColor }}>{entry.period}</span>
             </PreLine>
 
             {/* │  role @ company */}
             <PreLine prefix={pipe} prefixColor={style.mutedColor}>
-              <span style={{ color: style.fgColor, fontWeight: 600 }}>{entry.role}</span>
+              <span style={{ color: style.roleColor, fontWeight: 600 }}>{entry.role}</span>
               {entry.company && (
-                <span style={{ color: style.mutedColor }}> @ {entry.company}</span>
+                <span style={{ color: style.companyColor }}> @ {entry.company}</span>
               )}
             </PreLine>
 

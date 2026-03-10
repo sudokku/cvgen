@@ -38,6 +38,7 @@ export interface CVSection {
   photoWidth?: number   // max ASCII cols (default 80); API fits aspect ratio within this bound
   photoHeight?: number  // max ASCII rows (default 40); API fits aspect ratio within this bound
   renderMode?: RenderMode  // only used when CV.docMode === 'per-section'
+  sectionColors?: Partial<CVStyle>
 }
 
 export interface CVStyle {
@@ -49,6 +50,13 @@ export interface CVStyle {
   accentColor: string
   borderColor: string
   codeBgColor: string
+  headingColor: string      // ## Section Title
+  subtitleColor: string     // section subtitle line
+  periodColor: string       // timeline period tokens
+  roleColor: string         // job / degree title
+  companyColor: string      // company / institution
+  categoryColor: string     // skills category labels
+  projectTitleColor: string // project names
   jsonKeyColor: string
   jsonStringColor: string
   jsonNumberColor: string
@@ -92,6 +100,13 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#4493f8',
     borderColor: '#3d444d',
     codeBgColor: '#151b23',
+    headingColor: '#f0f6fc',
+    subtitleColor: '#9198a1',
+    periodColor: '#4493f8',
+    roleColor: '#f0f6fc',
+    companyColor: '#9198a1',
+    categoryColor: '#4493f8',
+    projectTitleColor: '#f0f6fc',
     jsonKeyColor: '#79c0ff',
     jsonStringColor: '#a5d6ff',
     jsonNumberColor: '#79c0ff',
@@ -106,6 +121,13 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#0969da',
     borderColor: '#d1d9e0',
     codeBgColor: '#f6f8fa',
+    headingColor: '#1f2328',
+    subtitleColor: '#636c76',
+    periodColor: '#0969da',
+    roleColor: '#1f2328',
+    companyColor: '#636c76',
+    categoryColor: '#0969da',
+    projectTitleColor: '#1f2328',
     jsonKeyColor: '#0550ae',
     jsonStringColor: '#0a3069',
     jsonNumberColor: '#0550ae',
@@ -120,6 +142,13 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#50fa7b',
     borderColor: '#44475a',
     codeBgColor: '#1e1f29',
+    headingColor: '#f8f8f2',
+    subtitleColor: '#6272a4',
+    periodColor: '#50fa7b',
+    roleColor: '#f8f8f2',
+    companyColor: '#6272a4',
+    categoryColor: '#ff79c6',
+    projectTitleColor: '#bd93f9',
     jsonKeyColor: '#8be9fd',
     jsonStringColor: '#f1fa8c',
     jsonNumberColor: '#bd93f9',
@@ -134,6 +163,13 @@ export const STYLE_PRESETS: Record<string, CVStyle> = {
     accentColor: '#88c0d0',
     borderColor: '#3b4252',
     codeBgColor: '#242932',
+    headingColor: '#eceff4',
+    subtitleColor: '#7b88a1',
+    periodColor: '#88c0d0',
+    roleColor: '#eceff4',
+    companyColor: '#7b88a1',
+    categoryColor: '#88c0d0',
+    projectTitleColor: '#81a1c1',
     jsonKeyColor: '#81a1c1',
     jsonStringColor: '#a3be8c',
     jsonNumberColor: '#b48ead',
