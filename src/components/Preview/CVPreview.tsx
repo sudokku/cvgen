@@ -341,7 +341,7 @@ export function CVPreview({ cv }: Props) {
       {cv.docMode === 'json'
         ? <JsonHeaderBlock cv={cv} />
         : <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
           {/* left: name + contact */}
           <div style={{ flex: 1 }}>
             <div
