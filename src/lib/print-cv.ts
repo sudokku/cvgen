@@ -36,8 +36,9 @@ export function printCV(elementId: string, filename = 'CV', bgColor = '#000000')
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    @page { margin: 0; size: A4; }
+    @page { margin: 40px 48px; size: A4; }
     html, body { margin: 0; padding: 0; background: ${bgColor}; }
+    #cv-preview { padding: 0 !important; }
   </style>
 </head>
 <body>
