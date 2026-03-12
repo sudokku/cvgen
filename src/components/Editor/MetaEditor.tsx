@@ -36,8 +36,8 @@ export function MetaEditor() {
 
   const handlePhoto = useCallback(
     async (file: File) => {
-      if (!file.type.match(/^image\/jpe?g$/)) {
-        alert('Only JPG/JPEG images are supported (no transparent backgrounds).')
+      if (!file.type.match(/^image\/(jpe?g|png|webp)$/)) {
+        alert('Supported formats: JPG, PNG, WebP.')
         return
       }
       const reader = new FileReader()
@@ -117,7 +117,7 @@ export function MetaEditor() {
         <input
           ref={fileRef}
           type="file"
-          accept="image/jpeg,image/jpg"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]

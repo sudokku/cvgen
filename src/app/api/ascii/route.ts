@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
 
     const { data, info } = await sharp(buffer)
       .resize({ width: 320, withoutEnlargement: true })
+      .flatten({ background: '#000000' })
       .toColorspace('srgb')
       .raw()
       .toBuffer({ resolveWithObject: true })
