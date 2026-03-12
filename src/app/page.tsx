@@ -15,10 +15,16 @@ const SectionList = dynamic(
   { ssr: false }
 )
 
-type SidebarTab = 'sections' | 'meta' | 'style'
+// FileReader / DOMParser are browser-only APIs → skip SSR
+const ImportTab = dynamic(
+  () => import('@/components/Editor/ImportTab').then((m) => m.ImportTab),
+  { ssr: false }
+)
+
+type SidebarTab = 'sections' | 'meta' | 'style' | 'import'
 type MobileTab = 'edit' | 'meta' | 'preview'
 type MobileEditView = 'list' | 'editor'
-type MobileMetaView = 'meta' | 'style'
+type MobileMetaView = 'meta' | 'style' | 'import'
 
 export default function Home() {
   const { cv } = useCVStore()
@@ -39,7 +45,7 @@ export default function Home() {
         {/* Left sidebar */}
         <aside className="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
           <div className="flex border-b border-gray-800 flex-shrink-0">
-            {(['sections', 'meta', 'style'] as SidebarTab[]).map((tab) => (
+            {(['sections', 'meta', 'style', 'import'] as SidebarTab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setSidebarTab(tab)}
@@ -57,6 +63,7 @@ export default function Home() {
             {sidebarTab === 'sections' && <SectionList />}
             {sidebarTab === 'meta' && <MetaEditor />}
             {sidebarTab === 'style' && <StyleEditor />}
+            {sidebarTab === 'import' && <ImportTab />}
           </div>
         </aside>
 
@@ -127,7 +134,7 @@ export default function Home() {
           {mobileTab === 'meta' && (
             <div className="flex flex-col h-full bg-gray-900">
               <div className="flex border-b border-gray-800 flex-shrink-0">
-                {(['meta', 'style'] as MobileMetaView[]).map((v) => (
+                {(['meta', 'style', 'import'] as MobileMetaView[]).map((v) => (
                   <button
                     key={v}
                     onClick={() => setMobileMetaView(v)}
@@ -144,6 +151,7 @@ export default function Home() {
               <div className="flex-1 overflow-hidden">
                 {mobileMetaView === 'meta' && <MetaEditor />}
                 {mobileMetaView === 'style' && <StyleEditor />}
+                {mobileMetaView === 'import' && <ImportTab />}
               </div>
             </div>
           )}

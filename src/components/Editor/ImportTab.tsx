@@ -1,0 +1,320 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import { parseEuropassXML, EuropassImportResult } from '@/lib/europass-parser'
+import { useCVStore } from '@/store/cv-store'
+
+type ImportState =
+  | { phase: 'idle' }
+  | { phase: 'loading'; filename: string }
+  | { phase: 'error'; message: string }
+  | { phase: 'review'; result: EuropassImportResult }
+  | { phase: 'done' }
+
+function countEntries(content: string): number {
+  return (content.match(/^### /gm) ?? []).length
+}
+
+const XML_ACCEPTED = ['.xml', 'text/xml', 'application/xml']
+const PDF_ACCEPTED = ['.pdf', 'application/pdf']
+const ALL_ACCEPTED = [...XML_ACCEPTED, ...PDF_ACCEPTED]
+
+function isXmlFile(file: File): boolean {
+  return (
+    file.name.endsWith('.xml') ||
+    file.type === 'text/xml' ||
+    file.type === 'application/xml'
+  )
+}
+
+function isPdfFile(file: File): boolean {
+  return file.name.endsWith('.pdf') || file.type === 'application/pdf'
+}
+
+export function ImportTab() {
+  const importCV = useCVStore((s) => s.importCV)
+  const [state, setState] = useState<ImportState>({ phase: 'idle' })
+  const [dragOver, setDragOver] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    if (isXmlFile(file)) {
+      setState({ phase: 'loading', filename: file.name })
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const xmlText = e.target?.result as string
+          const result = parseEuropassXML(xmlText)
+          setState({ phase: 'review', result })
+        } catch (err) {
+          setState({ phase: 'error', message: (err as Error).message })
+        }
+      }
+      reader.onerror = () => setState({ phase: 'error', message: 'Failed to read file.' })
+      reader.readAsText(file)
+      return
+    }
+
+    if (isPdfFile(file)) {
+      if (file.size > 10 * 1024 * 1024) {
+        setState({ phase: 'error', message: 'PDF file must be 10 MB or smaller.' })
+        return
+      }
+      setState({ phase: 'loading', filename: file.name })
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await fetch('/api/import', { method: 'POST', body: formData })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: res.statusText }))
+          throw new Error(body.error ?? `Server error ${res.status}`)
+        }
+        const { xml } = await res.json()
+        const result = parseEuropassXML(xml)
+        setState({ phase: 'review', result })
+      } catch (err) {
+        setState({ phase: 'error', message: (err as Error).message })
+      }
+      return
+    }
+
+    setState({ phase: 'error', message: 'Please select an XML (.xml) or EuroPass PDF (.pdf) file.' })
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+    e.target.value = ''
+  }
+
+  function reset() {
+    setState({ phase: 'idle' })
+  }
+
+  // ── idle ──────────────────────────────────────────────────────────────────
+  if (state.phase === 'idle') {
+    return (
+      <div className="p-4 flex flex-col gap-4">
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+          className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${
+            dragOver
+              ? 'border-blue-500 bg-blue-950/20'
+              : 'border-gray-700 hover:border-gray-500'
+          }`}
+        >
+          <span className="text-2xl select-none">📄</span>
+          <span className="text-sm font-mono text-gray-300 text-center">
+            Drop EuroPass XML or PDF here
+          </span>
+          <span className="text-xs font-mono text-gray-500 text-center">
+            or click to browse
+          </span>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={ALL_ACCEPTED.join(',')}
+            className="hidden"
+            onChange={handleInputChange}
+          />
+        </div>
+        <p className="text-xs font-mono text-gray-600 text-center leading-relaxed">
+          Imports EuroPass SkillsPassport XML or PDF.
+          <br />
+          Your current theme and colors are preserved.
+        </p>
+      </div>
+    )
+  }
+
+  // ── loading ────────────────────────────────────────────────────────────────
+  if (state.phase === 'loading') {
+    return (
+      <div className="p-4 flex flex-col gap-3 items-center justify-center min-h-[120px]">
+        <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-mono text-gray-400 text-center">
+          Extracting from {state.filename}...
+        </p>
+      </div>
+    )
+  }
+
+  // ── error ─────────────────────────────────────────────────────────────────
+  if (state.phase === 'error') {
+    return (
+      <div className="p-4 flex flex-col gap-3">
+        <div className="rounded-lg bg-red-950/40 border border-red-800 p-4">
+          <p className="text-xs font-mono text-red-400 leading-relaxed">{state.message}</p>
+        </div>
+        <button
+          onClick={reset}
+          className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors text-left"
+        >
+          ← Try again
+        </button>
+      </div>
+    )
+  }
+
+  // ── done ──────────────────────────────────────────────────────────────────
+  if (state.phase === 'done') {
+    return (
+      <div className="p-4 flex flex-col gap-3">
+        <p className="text-sm font-mono text-green-400">Import complete.</p>
+        <button
+          onClick={reset}
+          className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors text-left"
+        >
+          ← Import another file
+        </button>
+      </div>
+    )
+  }
+
+  // ── review ────────────────────────────────────────────────────────────────
+  const { result } = state
+  const { meta } = result
+
+  // Approximate photo size in KB for warning
+  const photoSizeKb = meta.photoUrl
+    ? Math.round((meta.photoUrl.length * 3) / (4 * 1024))
+    : 0
+
+  const metaFields: [string, string | undefined][] = [
+    ['name', meta.name],
+    ['title', meta.title],
+    ['email', meta.email],
+    ['phone', meta.phone],
+    ['location', meta.location],
+  ]
+
+  return (
+    <div className="p-4 flex flex-col gap-4 overflow-y-auto">
+
+      {/* Photo thumbnail */}
+      {meta.photoUrl && (
+        <div>
+          <p className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">Photo</p>
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={meta.photoUrl}
+              alt="Profile photo"
+              className="h-14 w-14 object-cover rounded border border-gray-700"
+            />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-mono text-green-400">Photo detected</span>
+              <span className="text-xs font-mono text-gray-500">~{photoSizeKb} KB</span>
+              {photoSizeKb > 500 && (
+                <span className="text-xs font-mono text-yellow-400">Large — consider cropping</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Meta preview */}
+      <div>
+        <p className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">Meta</p>
+        <div className="rounded-lg border border-gray-800 overflow-hidden">
+          {metaFields
+            .filter(([, v]) => v)
+            .map(([k, v]) => (
+              <div key={k} className="flex gap-2 px-3 py-1.5 border-b border-gray-800 last:border-0">
+                <span className="text-xs font-mono text-gray-500 w-16 flex-shrink-0">{k}</span>
+                <span className="text-xs font-mono text-gray-200 truncate">{v}</span>
+              </div>
+            ))}
+        </div>
+      </div>
+
+      {/* Links preview */}
+      {(meta.links?.length ?? 0) > 0 && (
+        <div>
+          <p className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">
+            Links ({meta.links!.length})
+          </p>
+          <div className="flex flex-col gap-1">
+            {meta.links!.map((link, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-3 py-1.5 rounded border border-gray-800 bg-gray-900"
+              >
+                <span className="text-xs font-mono text-blue-400 flex-shrink-0">{link.label}</span>
+                <span className="text-xs font-mono text-gray-500 truncate">{link.url}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sections list */}
+      <div>
+        <p className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">
+          Sections ({result.sections.length})
+        </p>
+        <div className="flex flex-col gap-1">
+          {result.sections.map((sec, i) => {
+            const count = countEntries(sec.content)
+            return (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-3 py-2 rounded border border-gray-800 bg-gray-900"
+              >
+                <span className="text-xs font-mono text-blue-500 bg-blue-950/40 px-1.5 py-0.5 rounded flex-shrink-0">
+                  {sec.type}
+                </span>
+                <span className="text-xs font-mono text-gray-200 flex-1 truncate">{sec.title}</span>
+                {count > 0 && (
+                  <span className="text-xs font-mono text-gray-600 flex-shrink-0">{count} entries</span>
+                )}
+              </div>
+            )
+          })}
+          {result.sections.length === 0 && (
+            <p className="text-xs font-mono text-gray-600">No sections found.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Warnings */}
+      {result.warnings.length > 0 && (
+        <div className="rounded-lg bg-yellow-950/30 border border-yellow-800/60 p-3 flex flex-col gap-1.5">
+          <p className="text-xs font-mono text-yellow-500 uppercase tracking-wide mb-1">Warnings</p>
+          {result.warnings.map((w, i) => (
+            <p key={i} className="text-xs font-mono text-yellow-400/80 leading-relaxed">• {w}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => {
+            importCV(result.meta, result.sections)
+            setState({ phase: 'done' })
+          }}
+          className="flex-1 py-2 text-sm font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+        >
+          Import
+        </button>
+        <button
+          onClick={reset}
+          className="flex-1 py-2 text-sm font-mono bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}

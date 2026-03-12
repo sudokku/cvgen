@@ -7,7 +7,13 @@ export type SectionType =
   | 'skills'
   | 'projects'
   | 'photo'
+  | 'personal'
   | 'custom'
+
+export interface CVLink {
+  label: string
+  url: string
+}
 
 export type TimelineLayout = 'vertical' | 'horizontal' | 'list'
 
@@ -15,11 +21,15 @@ export interface CVMeta {
   name: string
   title: string
   email: string
+  /** @deprecated Use `links` instead */
   github?: string
+  /** @deprecated Use `links` instead */
   linkedin?: string
+  /** @deprecated Use `links` instead */
   website?: string
   phone?: string
   location?: string
+  links?: CVLink[]
   photoUrl?: string
   photoAscii?: string
   photoWidth?: number   // max ASCII cols (default 50); API fits aspect ratio within this bound
