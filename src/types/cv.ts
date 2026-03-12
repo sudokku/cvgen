@@ -24,6 +24,7 @@ export interface CVMeta {
   photoAscii?: string
   photoWidth?: number   // max ASCII cols (default 50); API fits aspect ratio within this bound
   photoHeight?: number  // max ASCII rows (default 25); API fits aspect ratio within this bound
+  photoMode?: 'ascii' | 'image'
 }
 
 export interface CVSection {
@@ -37,6 +38,7 @@ export interface CVSection {
   photoAscii?: string
   photoWidth?: number   // max ASCII cols (default 80); API fits aspect ratio within this bound
   photoHeight?: number  // max ASCII rows (default 40); API fits aspect ratio within this bound
+  photoMode?: 'ascii' | 'image'
   renderMode?: RenderMode  // only used when CV.docMode === 'per-section'
   sectionColors?: Partial<CVStyle>
 }

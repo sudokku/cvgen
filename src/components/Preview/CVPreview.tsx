@@ -102,7 +102,19 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
       {/* Photo section */}
       {section.type === 'photo' && (
         <div>
-          {section.photoAscii ? (
+          {section.photoMode === 'image' && section.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={section.photoUrl}
+              alt="Photo"
+              style={{
+                maxWidth:  `${Math.round((section.photoWidth  ?? 80) * Math.max(effectiveStyle.fontSize - 3, 8) / 1.7)}px`,
+                maxHeight: `${Math.round((section.photoHeight ?? 40) * Math.max(effectiveStyle.fontSize - 3, 8))}px`,
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
+          ) : section.photoAscii ? (
             <pre
               style={{
                 fontFamily: 'inherit',
@@ -388,8 +400,21 @@ export function CVPreview({ cv }: Props) {
             </div>
           </div>{/* end left col */}
 
-          {/* right: ASCII photo or placeholder */}
-          {meta.photoAscii ? (
+          {/* right: photo (image or ASCII) or placeholder */}
+          {meta.photoMode === 'image' && meta.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={meta.photoUrl}
+              alt="Profile"
+              style={{
+                maxWidth:  `${Math.round((meta.photoWidth  ?? 50) * Math.max(style.fontSize - 4, 7) / 1.7)}px`,
+                maxHeight: `${Math.round((meta.photoHeight ?? 25) * Math.max(style.fontSize - 4, 7))}px`,
+                objectFit: 'contain',
+                display: 'block',
+                flexShrink: 0,
+              }}
+            />
+          ) : meta.photoAscii ? (
             <pre
               style={{
                 fontFamily: 'inherit',

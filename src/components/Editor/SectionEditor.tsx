@@ -221,6 +221,25 @@ export function SectionEditor() {
             />
           </div>
 
+          {/* ASCII / Image mode toggle — only when a photo is uploaded */}
+          {section.photoUrl && (
+            <div className="flex gap-1">
+              {(['ascii', 'image'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => update({ photoMode: m })}
+                  className={`flex-1 px-2 py-0.5 rounded text-xs font-mono border transition-colors ${
+                    (section.photoMode ?? 'ascii') === m
+                      ? 'border-blue-500 text-blue-400 bg-blue-950'
+                      : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Size controls */}
           <div className="space-y-2">
             <label className="flex flex-col gap-0.5">

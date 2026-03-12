@@ -126,6 +126,25 @@ export function MetaEditor() {
           }}
         />
 
+        {/* ASCII / Image mode toggle — only when a photo is uploaded */}
+        {meta.photoUrl && (
+          <div className="flex gap-1 pt-1">
+            {(['ascii', 'image'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => updateMeta({ photoMode: m })}
+                className={`flex-1 px-2 py-0.5 rounded text-xs font-mono border transition-colors ${
+                  (meta.photoMode ?? 'ascii') === m
+                    ? 'border-blue-500 text-blue-400 bg-blue-950'
+                    : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Size controls — always shown so user can set bounds before uploading */}
         <div className="space-y-1.5 pt-1">
           <label className="flex flex-col gap-0.5">
