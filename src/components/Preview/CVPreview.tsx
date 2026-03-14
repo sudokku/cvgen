@@ -1,6 +1,6 @@
 'use client'
 
-import { CV, CVSection, CVStyle, DocMode, RenderMode } from '@/types/cv'
+import { CV, CVLink, CVSection, CVStyle, DocMode, RenderMode } from '@/types/cv'
 import { TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
 import { JsonSectionBlock, JKey, JStr, JPunct } from './JsonSectionBlock'
@@ -147,15 +147,15 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
         />
       )}
 
-      {/* Plain content — skills */}
-      {!isTimeline && section.type !== 'photo' && section.type === 'skills' && (
+      {/* Plain content — skills and personal (both use key:value category rendering) */}
+      {!isTimeline && section.type !== 'photo' && (section.type === 'skills' || section.type === 'personal') && (
         <pre style={preStyle}>
           {renderSkillsContent(section.content, effectiveStyle)}
         </pre>
       )}
 
-      {/* Plain content — non-skills */}
-      {!isTimeline && section.type !== 'photo' && section.type !== 'skills' && (
+      {/* Plain content — non-skills, non-personal */}
+      {!isTimeline && section.type !== 'photo' && section.type !== 'skills' && section.type !== 'personal' && (
         <pre style={preStyle}>
           {renderInlineMarkdown(section.content, effectiveStyle, h3Color)}
         </pre>
@@ -295,13 +295,19 @@ function effectiveMode(docMode: DocMode, section: CVSection): RenderMode {
 
 function JsonHeaderBlock({ cv }: { cv: CV }) {
   const { meta, style } = cv
+  // Resolve links: new meta.links takes precedence; fall back to deprecated fields
+  const resolvedLinks: CVLink[] = meta.links && meta.links.length > 0
+    ? meta.links
+    : [
+        ...(meta.github   ? [{ label: 'github',   url: `https://github.com/${meta.github}` }]        : []),
+        ...(meta.linkedin ? [{ label: 'linkedin', url: `https://linkedin.com/in/${meta.linkedin}` }] : []),
+        ...(meta.website  ? [{ label: 'website',  url: meta.website }]                               : []),
+      ]
   const fields: [string, string][] = [
     ['name',     meta.name],
     ['title',    meta.title],
     ['email',    meta.email],
-    ...(meta.github   ? [['github',   meta.github]   as [string, string]] : []),
-    ...(meta.linkedin ? [['linkedin', meta.linkedin] as [string, string]] : []),
-    ...(meta.website  ? [['website',  meta.website]  as [string, string]] : []),
+    ...resolvedLinks.map(({ label, url }) => [label, url] as [string, string]),
     ...(meta.phone    ? [['phone',    meta.phone]    as [string, string]] : []),
     ...(meta.location ? [['location', meta.location] as [string, string]] : []),
   ]
@@ -325,13 +331,20 @@ function JsonHeaderBlock({ cv }: { cv: CV }) {
 export function CVPreview({ cv }: Props) {
   const { meta, sections, style } = cv
 
+  // Build link list from meta.links (new) or fall back to deprecated individual fields
+  const resolvedLinks: CVLink[] = meta.links && meta.links.length > 0
+    ? meta.links
+    : [
+        ...(meta.github   ? [{ label: `github.com/${meta.github}`,        url: `https://github.com/${meta.github}` }]        : []),
+        ...(meta.linkedin ? [{ label: `linkedin.com/in/${meta.linkedin}`, url: `https://linkedin.com/in/${meta.linkedin}` }] : []),
+        ...(meta.website  ? [{ label: meta.website,                       url: meta.website.startsWith('http') ? meta.website : `https://${meta.website}` }] : []),
+      ]
+
   const contactLinks: { label: string; href: string }[] = [
-    meta.email    ? { label: meta.email,                           href: `mailto:${meta.email}` }                          : null,
-    meta.github   ? { label: `github.com/${meta.github}`,         href: `https://github.com/${meta.github}` }             : null,
-    meta.linkedin ? { label: `linkedin.com/in/${meta.linkedin}`,  href: `https://linkedin.com/in/${meta.linkedin}` }      : null,
-    meta.website  ? { label: meta.website,                        href: meta.website.startsWith('http') ? meta.website : `https://${meta.website}` } : null,
-    meta.phone    ? { label: meta.phone,                          href: `tel:${meta.phone}` }                             : null,
-    meta.location ? { label: meta.location,                       href: '' }                                               : null,
+    meta.email    ? { label: meta.email,    href: `mailto:${meta.email}` } : null,
+    ...resolvedLinks.map(({ label, url }) => ({ label, href: url.startsWith('http') ? url : `https://${url}` })),
+    meta.phone    ? { label: meta.phone,    href: `tel:${meta.phone}` }   : null,
+    meta.location ? { label: meta.location, href: '' }                     : null,
   ].filter(Boolean) as { label: string; href: string }[]
 
   return (

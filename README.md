@@ -31,10 +31,12 @@ you@example.com · github.com/you · City, Country
 - **Per-section color overrides** — collapsible Colors panel per section, each token resettable to global
 - **Semantic color tokens** — heading, subtitle, period, role, company, category, project title — separate from base palette
 - **Style presets** — GitHub Dark, GitHub Light, Dracula, Nord; fully customisable
-- **Photo → ASCII art** — upload a JPG, get ASCII art in the header or a dedicated section
+- **Photo → ASCII art** — upload a JPG/PNG/WebP, get ASCII art in the header or a dedicated section
 - **Drag-and-drop** section reordering
-- **Section types** — experience, education, skills, projects, photo, custom
+- **Section types** — experience, education, skills, projects, photo, personal, custom
 - **Projects section** — parses `Stack: item1, item2` into a structured array in JSON mode
+- **EuroPass import** — drop a EuroPass SkillsPassport XML or PDF; all sections, photo, and links extracted automatically
+- **Dynamic links** — `meta.links[]` replaces the old GitHub / LinkedIn / Website fields; unlimited labelled links in the header
 - **Mobile-responsive** — bottom tab navigation (Edit / Meta / Preview) on small screens
 - **Scaled preview** — preview zooms to fit any screen width while preserving the exact PDF layout
 - **PDF export** — prints with correct per-page margins, preserving background color
@@ -84,8 +86,9 @@ The app has three panels on desktop, and a tabbed layout on mobile.
 | Area | Purpose |
 |---|---|
 | **Left sidebar — Sections tab** | Add, delete, reorder sections via drag-and-drop |
-| **Left sidebar — Meta tab** | Name, title, email, GitHub, LinkedIn, website, phone, location, profile photo |
+| **Left sidebar — Meta tab** | Name, title, email, phone, location, links, profile photo |
 | **Left sidebar — Style tab** | Preset, font, font size, base colors, semantic colors, JSON colors, render mode |
+| **Left sidebar — Import tab** | EuroPass XML or PDF import |
 | **Center — Editor** | Edit the selected section's content, layout, render mode, and per-section color overrides |
 | **Right — Preview** | Live CV preview, Export PDF button |
 
@@ -131,6 +134,17 @@ Infra:       Docker · Kubernetes · AWS · Terraform
 Category labels (`Languages:`, `Frameworks:`, etc.) are coloured with the `category` semantic token.
 In JSON render mode, each category becomes a key with an array of values.
 
+### Personal Information
+
+A `personal` section type renders key-value pairs (date of birth, nationality, gender, etc.).
+It is automatically created when importing a EuroPass document that includes demographics.
+
+```
+Date of birth: 15 Jun 1990
+Nationality:   German
+Gender:        Male
+```
+
 ### Projects
 
 ```
@@ -162,6 +176,42 @@ Set document-wide in the **Style tab**:
 | `md` | All sections rendered as markdown-style plain text |
 | `json` | Entire CV rendered as a syntax-highlighted JSON document |
 | `per-section` | Each section independently toggles between `md` and `json` in the Editor |
+
+## EuroPass import
+
+Drop a EuroPass SkillsPassport file onto the **Import** tab (desktop sidebar) or the **Import** sub-tab under Meta (mobile).
+
+| Format | How it works |
+|---|---|
+| `.xml` | Parsed entirely in the browser — no server round-trip |
+| `.pdf` | Sent to `/api/import` (Node.js route); embedded XML is extracted from the PDF binary and returned to the client, then parsed the same way as a plain XML upload |
+
+What is imported:
+
+| EuroPass field | Maps to |
+|---|---|
+| Name, headline, email, phone, address | `meta` fields |
+| WebsiteList | `meta.links[]` — labelled links (GitHub, LinkedIn, etc. auto-detected) |
+| Photo (base64) | `meta.photoUrl`, displayed in the CV header |
+| ProfileSummary | `custom` section — "Summary" |
+| Demographics (birthdate, nationality, gender) | `personal` section — "Personal Information" |
+| WorkExperienceList | `experience` section, vertical timeline layout |
+| EducationList | `education` section, vertical timeline layout |
+| Languages + ComputerSkills | `skills` section |
+| Communication / Organisational / JobRelated skills | `custom` section — "Soft Skills" |
+| AchievementList | one section per achievement code; `projects` type if code is "Projects", otherwise `custom` |
+
+Your current theme and color settings are preserved on import.
+
+Imported HTML in description fields (lists, bold, italic) is converted to Markdown.
+
+## Links
+
+`meta.links[]` is an array of `{ label: string; url: string }` objects. They appear in the CV header after the email address.
+
+The **Meta** tab has a dynamic links editor: click **+ add** to add a new entry, edit the label and URL inline, and click **×** to remove.
+
+CVs created before this feature was added may have the old `github`, `linkedin`, and `website` fields. The Meta tab detects these and shows a one-click **Migrate to links list** button.
 
 ## Style system
 
@@ -197,10 +247,11 @@ Each section has a collapsible **Colors** panel in the Editor. Any of the semant
 
 ## Photo / ASCII art
 
-- Upload a JPG/JPEG in the **Meta** tab — appears top-right of the CV header
+- Upload a JPG/PNG/WebP in the **Meta** tab — appears top-right of the CV header
 - Or add a **Photo** section for a full-width ASCII block
 - Use the width/height sliders to control ASCII art dimensions
 - The aspect ratio is preserved automatically
+- Toggle between `ascii` and `image` render mode per photo
 
 ## PDF export
 

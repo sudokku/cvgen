@@ -3,6 +3,7 @@
 import { useRef, useCallback } from 'react'
 import { useCVStore } from '@/store/cv-store'
 import { useAsciiGenerator } from '@/lib/use-ascii'
+import { CVLink } from '@/types/cv'
 
 const DEFAULT_MAX_COLS = 50
 const DEFAULT_MAX_ROWS = 25
@@ -71,6 +72,33 @@ export function MetaEditor() {
     },
     [meta.photoUrl, maxCols, updateMeta, generate]
   )
+
+  // ── Links management ──────────────────────────────────────────────────────
+  // Check if old deprecated fields exist and no new links array yet
+  const hasDeprecatedFields = !!(meta.github || meta.linkedin || meta.website)
+  const hasLinks = (meta.links?.length ?? 0) > 0
+  const links: CVLink[] = meta.links ?? []
+
+  function updateLink(index: number, patch: Partial<CVLink>) {
+    const next = links.map((l, i) => (i === index ? { ...l, ...patch } : l))
+    updateMeta({ links: next })
+  }
+
+  function addLink() {
+    updateMeta({ links: [...links, { label: '', url: '' }] })
+  }
+
+  function removeLink(index: number) {
+    updateMeta({ links: links.filter((_, i) => i !== index) })
+  }
+
+  function migrateDeprecatedLinks() {
+    const migrated: CVLink[] = []
+    if (meta.github) migrated.push({ label: 'GitHub', url: `https://github.com/${meta.github}` })
+    if (meta.linkedin) migrated.push({ label: 'LinkedIn', url: `https://linkedin.com/in/${meta.linkedin}` })
+    if (meta.website) migrated.push({ label: 'Website', url: meta.website })
+    updateMeta({ links: migrated, github: undefined, linkedin: undefined, website: undefined })
+  }
 
   return (
     <div className="p-3 space-y-2 overflow-y-auto h-full">
@@ -181,11 +209,68 @@ export function MetaEditor() {
       {field('Name', 'name', 'Your Name')}
       {field('Title', 'title', 'Software Engineer')}
       {field('Email', 'email', 'you@example.com', 'email')}
-      {field('GitHub', 'github', 'username')}
-      {field('LinkedIn', 'linkedin', 'username')}
-      {field('Website', 'website', 'https://yoursite.com')}
       {field('Phone', 'phone', '+1 234 567 8900', 'tel')}
       {field('Location', 'location', 'City, Country')}
+
+      {/* ── Links ───────────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-1 pt-1">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-mono text-gray-400 uppercase tracking-wide">Links</span>
+          <button
+            onClick={addLink}
+            className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            + add
+          </button>
+        </div>
+
+        {/* One-time migration prompt */}
+        {hasDeprecatedFields && !hasLinks && (
+          <div className="rounded border border-yellow-800/60 bg-yellow-950/30 p-2 flex flex-col gap-1.5">
+            <p className="text-xs font-mono text-yellow-400/80 leading-relaxed">
+              Legacy GitHub / LinkedIn / Website fields detected.
+            </p>
+            <button
+              onClick={migrateDeprecatedLinks}
+              className="text-xs font-mono text-yellow-300 hover:text-yellow-200 transition-colors text-left"
+            >
+              Migrate to links list
+            </button>
+          </div>
+        )}
+
+        {links.map((link, i) => (
+          <div key={i} className="flex flex-col gap-0.5 rounded border border-gray-800 p-2">
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={link.label}
+                onChange={(e) => updateLink(i, { label: e.target.value })}
+                placeholder="Label"
+                className="flex-1 bg-transparent border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-400"
+              />
+              <button
+                onClick={() => removeLink(i)}
+                className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-red-400 transition-colors text-xs flex-shrink-0"
+                title="Remove link"
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="url"
+              value={link.url}
+              onChange={(e) => updateLink(i, { url: e.target.value })}
+              placeholder="https://..."
+              className="w-full bg-transparent border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-400"
+            />
+          </div>
+        ))}
+
+        {links.length === 0 && !hasDeprecatedFields && (
+          <p className="text-xs font-mono text-gray-600">No links. Click + add.</p>
+        )}
+      </div>
     </div>
   )
 }

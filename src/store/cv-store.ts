@@ -49,6 +49,7 @@ interface CVStore {
   reorderSections: (ids: string[]) => void
   selectSection: (id: string | null) => void
   updateDocMode: (mode: DocMode) => void
+  importCV: (meta: CVMeta, sections: Omit<CVSection, 'id'>[]) => void
 }
 
 function sectionDefaults(type: SectionType): Partial<CVSection> {
@@ -63,6 +64,8 @@ function sectionDefaults(type: SectionType): Partial<CVSection> {
       return { title: 'Projects', layout: 'list', content: '### Project Name\nBrief description of what you built. Stack: TypeScript, React, Node.js' }
     case 'photo':
       return { title: 'Photo', layout: 'list', content: '' }
+    case 'personal':
+      return { title: 'Personal Information', layout: 'list', content: 'Date of birth: \nNationality: \nGender: ' }
     case 'custom':
       return { title: 'Custom Section', layout: 'list', content: 'Write anything here.' }
     default:
@@ -122,6 +125,20 @@ export const useCVStore = create<CVStore>()(
 
       updateDocMode: (mode) =>
         set((s) => ({ cv: { ...s.cv, docMode: mode } })),
+
+      importCV: (meta, sections) =>
+        set((s) => {
+          const materialisedSections: CVSection[] = sections.map((sec) => ({
+            id: nanoid(),
+            subtitle: '',
+            layout: 'list',
+            ...sec,
+          }))
+          return {
+            cv: { ...s.cv, meta, sections: materialisedSections },
+            selectedSectionId: materialisedSections[0]?.id ?? null,
+          }
+        }),
     }),
     {
       name: 'cvgen-store',

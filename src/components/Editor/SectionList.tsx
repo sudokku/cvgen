@@ -26,6 +26,7 @@ const SECTION_ICONS: Record<SectionType, string> = {
   skills:     '[ski]',
   projects:   '[prj]',
   photo:      '[img]',
+  personal:   '[per]',
   custom:     '[---]',
 }
 
@@ -35,6 +36,7 @@ const ADD_OPTIONS: { label: string; type: SectionType }[] = [
   { label: 'Skills', type: 'skills' },
   { label: 'Projects', type: 'projects' },
   { label: 'Photo', type: 'photo' },
+  { label: 'Personal', type: 'personal' },
   { label: 'Custom', type: 'custom' },
 ]
 
