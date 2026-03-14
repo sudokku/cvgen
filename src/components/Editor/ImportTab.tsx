@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { parseEuropassXML, EuropassImportResult } from '@/lib/europass-parser'
+import { parseEuropassXML, parseEuropassText, EuropassImportResult } from '@/lib/europass-parser'
 import { useCVStore } from '@/store/cv-store'
 
 type ImportState =
@@ -15,21 +15,7 @@ function countEntries(content: string): number {
   return (content.match(/^### /gm) ?? []).length
 }
 
-const XML_ACCEPTED = ['.xml', 'text/xml', 'application/xml']
 const PDF_ACCEPTED = ['.pdf', 'application/pdf']
-const ALL_ACCEPTED = [...XML_ACCEPTED, ...PDF_ACCEPTED]
-
-function isXmlFile(file: File): boolean {
-  return (
-    file.name.endsWith('.xml') ||
-    file.type === 'text/xml' ||
-    file.type === 'application/xml'
-  )
-}
-
-function isPdfFile(file: File): boolean {
-  return file.name.endsWith('.pdf') || file.type === 'application/pdf'
-}
 
 export function ImportTab() {
   const importCV = useCVStore((s) => s.importCV)
@@ -38,47 +24,45 @@ export function ImportTab() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function handleFile(file: File) {
-    if (isXmlFile(file)) {
-      setState({ phase: 'loading', filename: file.name })
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        try {
-          const xmlText = e.target?.result as string
-          const result = parseEuropassXML(xmlText)
-          setState({ phase: 'review', result })
-        } catch (err) {
-          setState({ phase: 'error', message: (err as Error).message })
-        }
-      }
-      reader.onerror = () => setState({ phase: 'error', message: 'Failed to read file.' })
-      reader.readAsText(file)
+    const isPdf = file.name.endsWith('.pdf') || file.type === 'application/pdf'
+
+    if (!isPdf) {
+      setState({ phase: 'error', message: 'Please select a EuroPass PDF file (.pdf).' })
       return
     }
 
-    if (isPdfFile(file)) {
-      if (file.size > 10 * 1024 * 1024) {
-        setState({ phase: 'error', message: 'PDF file must be 10 MB or smaller.' })
-        return
-      }
-      setState({ phase: 'loading', filename: file.name })
-      try {
-        const formData = new FormData()
-        formData.append('file', file)
-        const res = await fetch('/api/import', { method: 'POST', body: formData })
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: res.statusText }))
-          throw new Error(body.error ?? `Server error ${res.status}`)
-        }
-        const { xml } = await res.json()
-        const result = parseEuropassXML(xml)
-        setState({ phase: 'review', result })
-      } catch (err) {
-        setState({ phase: 'error', message: (err as Error).message })
-      }
+    if (file.size > 10 * 1024 * 1024) {
+      setState({ phase: 'error', message: 'PDF file must be 10 MB or smaller.' })
       return
     }
 
-    setState({ phase: 'error', message: 'Please select an XML (.xml) or EuroPass PDF (.pdf) file.' })
+    setState({ phase: 'loading', filename: file.name })
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/import', { method: 'POST', body: formData })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body.error ?? `Server error ${res.status}`)
+      }
+
+      const body = await res.json()
+
+      let result: EuropassImportResult
+      if (body.xml) {
+        result = parseEuropassXML(body.xml)
+      } else if (body.text) {
+        result = parseEuropassText(body.text)
+      } else {
+        throw new Error('No CV data could be extracted from this PDF.')
+      }
+
+      setState({ phase: 'review', result })
+    } catch (err) {
+      setState({ phase: 'error', message: (err as Error).message })
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -115,7 +99,7 @@ export function ImportTab() {
         >
           <span className="text-2xl select-none">📄</span>
           <span className="text-sm font-mono text-gray-300 text-center">
-            Drop EuroPass XML or PDF here
+            Drop EuroPass PDF here
           </span>
           <span className="text-xs font-mono text-gray-500 text-center">
             or click to browse
@@ -123,13 +107,13 @@ export function ImportTab() {
           <input
             ref={inputRef}
             type="file"
-            accept={ALL_ACCEPTED.join(',')}
+            accept={PDF_ACCEPTED.join(',')}
             className="hidden"
             onChange={handleInputChange}
           />
         </div>
         <p className="text-xs font-mono text-gray-600 text-center leading-relaxed">
-          Imports EuroPass SkillsPassport XML or PDF.
+          Imports EuroPass PDF exports (all versions).
           <br />
           Your current theme and colors are preserved.
         </p>
@@ -160,7 +144,7 @@ export function ImportTab() {
           onClick={reset}
           className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors text-left"
         >
-          ← Try again
+          &larr; Try again
         </button>
       </div>
     )
@@ -175,7 +159,7 @@ export function ImportTab() {
           onClick={reset}
           className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors text-left"
         >
-          ← Import another file
+          &larr; Import another file
         </button>
       </div>
     )
@@ -185,7 +169,6 @@ export function ImportTab() {
   const { result } = state
   const { meta } = result
 
-  // Approximate photo size in KB for warning
   const photoSizeKb = meta.photoUrl
     ? Math.round((meta.photoUrl.length * 3) / (4 * 1024))
     : 0
@@ -292,7 +275,7 @@ export function ImportTab() {
         <div className="rounded-lg bg-yellow-950/30 border border-yellow-800/60 p-3 flex flex-col gap-1.5">
           <p className="text-xs font-mono text-yellow-500 uppercase tracking-wide mb-1">Warnings</p>
           {result.warnings.map((w, i) => (
-            <p key={i} className="text-xs font-mono text-yellow-400/80 leading-relaxed">• {w}</p>
+            <p key={i} className="text-xs font-mono text-yellow-400/80 leading-relaxed">&bull; {w}</p>
           ))}
         </div>
       )}

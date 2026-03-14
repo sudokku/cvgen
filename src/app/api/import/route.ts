@@ -8,10 +8,16 @@ const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 /**
  * POST /api/import
  * Accepts FormData with a `file` field containing a EuroPass PDF.
- * Extracts the embedded XML attachment and returns { xml: string }.
  *
- * EuroPass PDFs embed the SkillsPassport XML as a named embedded file.
- * We parse the raw PDF binary to locate and decode this stream.
+ * Returns one of:
+ *   { xml: string }   — when an embedded XML attachment was found and extracted
+ *   { text: string }  — when no embedded XML was found but the PDF has extractable text
+ *
+ * Two EuroPass PDF variants exist in the wild:
+ *   1. PDFs with an embedded attachment.xml (SkillsPassport or Candidate schema)
+ *      → extracted directly from the raw PDF binary (no worker needed)
+ *   2. Fully compressed PDFs with no embedded XML (new EuroPass builder as of 2024)
+ *      → text extracted with pdfjs-dist; caller parses the structured text
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let formData: FormData
@@ -39,53 +45,64 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    // ── Step 1: try to extract embedded XML ──────────────────────────────────
     const xml = extractXmlFromPdf(buf)
-    if (!xml) {
-      return NextResponse.json(
-        { error: 'No embedded XML attachment found in this PDF. Please export a EuroPass SkillsPassport XML directly.' },
-        { status: 422 }
-      )
+    if (xml) {
+      return NextResponse.json({ xml })
     }
-    return NextResponse.json({ xml })
+
+    // ── Step 2: fall back to pdfjs text extraction ───────────────────────────
+    const text = await extractTextFromPdf(buf)
+    if (text && text.trim().length > 100) {
+      return NextResponse.json({ text })
+    }
+
+    return NextResponse.json(
+      { error: 'Could not extract any CV data from this PDF. Please make sure it is a EuroPass PDF.' },
+      { status: 422 }
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to parse PDF.'
     return NextResponse.json({ error: message }, { status: 422 })
   }
 }
 
-// ── PDF binary parser ──────────────────────────────────────────────────────
+// ── PDF binary XML extractor ───────────────────────────────────────────────
 
 /**
- * Extracts the first XML-looking embedded stream from a PDF buffer.
+ * Extracts embedded EuroPass XML from a PDF buffer.
+ *
+ * Handles both:
+ *   - Old format: <SkillsPassport> root element
+ *   - New format: <Candidate> root element (EuroPass v4 / HR-XML 3.0)
  *
  * Strategy:
- * 1. Look for stream objects that contain XML content (<?xml or <SkillsPassport).
- * 2. Handle FlateDecode (zlib) compressed streams.
- * 3. Return the first match.
- *
- * This covers the common EuroPass PDF structure where the SkillsPassport XML
- * is stored as an embedded file stream, typically FlateDecode compressed.
+ *   1. Look for <?xml in raw bytes — most EuroPass PDFs store the XML uncompressed.
+ *      Byte-level search is used so that the result can be decoded as UTF-8 (not
+ *      latin1). Decoding as latin1 was the previous bug: multi-byte UTF-8 sequences
+ *      (e.g. Romanian ș = 0xC8 0x99) produced U+0099, a C1 control character that is
+ *      illegal in XML 1.0 and caused the browser's DOMParser to reject the document.
+ *   2. Fall back to decompressing FlateDecode streams (pdf-lib PDFs use this).
  */
 function extractXmlFromPdf(buf: Buffer): string | null {
-  // First, try to find uncompressed XML directly in the buffer
-  // (some EuroPass variants don't compress the XML stream)
-  const raw = buf.toString('latin1')
-
-  // Look for <?xml ... <SkillsPassport markers in plaintext
-  const xmlStart = raw.indexOf('<?xml')
-  if (xmlStart !== -1) {
-    // Find the end — look for </SkillsPassport> or end of stream
-    const spEnd = raw.indexOf('</SkillsPassport>', xmlStart)
-    if (spEnd !== -1) {
-      const xmlFragment = raw.slice(xmlStart, spEnd + '</SkillsPassport>'.length)
-      return xmlFragment
+  // All search strings are ASCII so findKeyword (byte-level) works for both paths.
+  const xmlStartByte = findKeyword(buf, '<?xml', 0)
+  if (xmlStartByte !== -1) {
+    for (const rootTag of ['</Candidate>', '</SkillsPassport>']) {
+      const endByte = findKeyword(buf, rootTag, xmlStartByte)
+      if (endByte !== -1) {
+        // Decode the slice as UTF-8 to preserve non-ASCII characters correctly.
+        return buf.slice(xmlStartByte, endByte + rootTag.length).toString('utf8')
+      }
     }
-    // Try without namespace suffix
-    const genericEnd = raw.indexOf('</SkillsPassport', xmlStart)
+    // Fallback: try a generic close tag within a short window of the <?xml start.
+    // latin1 is safe here because we only look at ASCII tag names.
+    const raw = buf.toString('latin1')
+    const genericEnd = raw.indexOf('</', xmlStartByte + 5)
     if (genericEnd !== -1) {
-      const closeTag = raw.indexOf('>', genericEnd)
-      if (closeTag !== -1) {
-        return raw.slice(xmlStart, closeTag + 1)
+      const closeTagEnd = raw.indexOf('>', genericEnd)
+      if (closeTagEnd !== -1 && closeTagEnd - genericEnd < 60) {
+        return buf.slice(xmlStartByte, closeTagEnd + 1).toString('utf8')
       }
     }
   }
@@ -98,23 +115,19 @@ function extractCompressedXmlStream(buf: Buffer): string | null {
   let offset = 0
 
   while (offset < buf.length) {
-    // Find next "stream\r\n" or "stream\n"
     const streamIdx = findKeyword(buf, 'stream', offset)
     if (streamIdx === -1) break
 
-    // The stream content starts after the newline following "stream"
     let contentStart = streamIdx + 6 // length of 'stream'
     if (buf[contentStart] === 0x0d) contentStart++ // \r
     if (buf[contentStart] === 0x0a) contentStart++ // \n
 
-    // Find "endstream"
     const endStreamIdx = findKeyword(buf, 'endstream', contentStart)
     if (endStreamIdx === -1) break
 
     const streamData = buf.slice(contentStart, endStreamIdx)
     offset = endStreamIdx + 9 // length of 'endstream'
 
-    // Try to decompress and check for XML
     const xml = tryDecodeAsXml(streamData)
     if (xml) return xml
   }
@@ -135,51 +148,84 @@ function findKeyword(buf: Buffer, keyword: string, fromOffset: number): number {
 }
 
 function tryDecodeAsXml(data: Buffer): string | null {
-  // Try raw (uncompressed) first
   const raw = tryParseXml(data.toString('utf8'))
   if (raw) return raw
 
-  // Try FlateDecode (zlib deflate)
   try {
     const decompressed = inflateSync(data)
-    const text = decompressed.toString('utf8')
-    const result = tryParseXml(text)
+    const result = tryParseXml(decompressed.toString('utf8'))
     if (result) return result
-  } catch {
-    // Not valid zlib with header
-  }
+  } catch { /* not valid zlib */ }
 
-  // Try raw deflate (no zlib header)
   try {
     const decompressed = inflateRawSync(data)
-    const text = decompressed.toString('utf8')
-    const result = tryParseXml(text)
+    const result = tryParseXml(decompressed.toString('utf8'))
     if (result) return result
-  } catch {
-    // Not valid deflate
-  }
+  } catch { /* not valid deflate */ }
 
   return null
 }
 
 function tryParseXml(text: string): string | null {
   const trimmed = text.trim()
-  if (
-    (trimmed.startsWith('<?xml') || trimmed.includes('<SkillsPassport')) &&
-    trimmed.includes('</SkillsPassport')
-  ) {
-    // Extract from start of <?xml or <SkillsPassport
-    const start = trimmed.indexOf('<?xml') !== -1
-      ? trimmed.indexOf('<?xml')
-      : trimmed.indexOf('<SkillsPassport')
-    const end = trimmed.lastIndexOf('</SkillsPassport')
+  if (!trimmed.startsWith('<?xml') && !trimmed.includes('<SkillsPassport') && !trimmed.includes('<Candidate ')) {
+    return null
+  }
+
+  const start = trimmed.indexOf('<?xml') !== -1 ? trimmed.indexOf('<?xml') : 0
+
+  for (const rootTag of ['</Candidate>', '</SkillsPassport>']) {
+    const end = trimmed.lastIndexOf(rootTag)
     if (end !== -1) {
-      const closeTagEnd = trimmed.indexOf('>', end)
-      if (closeTagEnd !== -1) {
-        return trimmed.slice(start, closeTagEnd + 1)
-      }
+      return trimmed.slice(start, end + rootTag.length)
     }
-    return trimmed.slice(start)
   }
   return null
+}
+
+// ── PDF text extractor (pdfjs-dist fallback) ───────────────────────────────
+
+/**
+ * Extracts plain text from a PDF using pdfjs-dist (legacy Node.js build).
+ * Used as a fallback when no embedded XML is found.
+ * Returns concatenated text from all pages, separated by newlines.
+ */
+async function extractTextFromPdf(buf: Buffer): Promise<string> {
+  // pdfjs-dist requires DOMMatrix and other browser APIs. Polyfill minimally.
+  if (typeof (globalThis as Record<string, unknown>).DOMMatrix === 'undefined') {
+    ;(globalThis as Record<string, unknown>).DOMMatrix = class DOMMatrix {
+      a = 1; b = 0; c = 0; d = 1; e = 0; f = 0
+    }
+  }
+  if (typeof (globalThis as Record<string, unknown>).ImageData === 'undefined') {
+    ;(globalThis as Record<string, unknown>).ImageData = class ImageData {
+      width: number; height: number; data: Uint8ClampedArray
+      constructor(w: number, h: number) {
+        this.width = w; this.height = h
+        this.data = new Uint8ClampedArray(w * h * 4)
+      }
+    }
+  }
+  if (typeof (globalThis as Record<string, unknown>).Path2D === 'undefined') {
+    ;(globalThis as Record<string, unknown>).Path2D = class Path2D {}
+  }
+
+  // Dynamic import to avoid issues when XML extraction succeeds (no need to load pdfjs)
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as string)
+  const getDocument = (pdfjsLib as unknown as { getDocument: typeof import('pdfjs-dist').getDocument }).getDocument
+
+  const task = getDocument({ data: new Uint8Array(buf), disableFontFace: true, verbosity: 0 })
+  const pdfDoc = await task.promise
+
+  const pages: string[] = []
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const page = await pdfDoc.getPage(i)
+    const textContent = await page.getTextContent()
+    const pageText = (textContent.items as Array<{ str: string }>)
+      .map(item => item.str)
+      .join(' ')
+    pages.push(pageText)
+  }
+
+  return pages.join('\n\n')
 }
