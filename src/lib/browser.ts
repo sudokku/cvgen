@@ -7,7 +7,7 @@ export async function launchBrowser(): Promise<Browser> {
     return puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      headless: true,
     })
   } else {
     // devDependency: auto-manages Chrome via ~/.cache/puppeteer
