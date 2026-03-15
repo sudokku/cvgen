@@ -255,11 +255,43 @@ Each section has a collapsible **Colors** panel in the Editor. Any of the semant
 
 ## PDF export
 
-Click **Export PDF** in the preview panel. The browser print dialog opens with:
+Two export options are available from the preview panel:
+
+### Quick Print (browser native)
+
+Click **Quick Print**. The browser print dialog opens with:
 
 - `@page { margin: 0 }` — no browser-added headers or footers
 - `box-decoration-break: clone` — the CV's padding is repeated at every page break, giving consistent gutters on multipage CVs
 - Background color is preserved via `-webkit-print-color-adjust: exact`
+
+### Export PDF (puppeteer pipeline)
+
+Click **Export PDF**. This sends the CV to the server, which generates the PDF server-side and embeds rich metadata:
+
+1. CV JSON is `POST`ed to `/api/pdf`
+2. The route caches the CV and launches a headless Puppeteer browser
+3. Puppeteer navigates to the internal `/print` page (not indexed by robots), which renders the full CV with JSON-LD and Open Graph metadata tags
+4. Puppeteer captures an A4 PDF with background colors preserved
+5. [`pdf-lib`](https://pdf-lib.js.org/) post-processes the PDF:
+   - Sets standard PDF document info (title, author, subject, keywords)
+   - Injects an XMP metadata stream with Dublin Core + a custom `cvgen:` namespace
+   - Attaches `cv-metadata.json` as an embedded file — a [schema.org/Person](https://schema.org/Person) JSON-LD document mapping experience → `hasOccupation`, education → `alumniOf`, skills → `knowsAbout`
+6. The enriched PDF is returned as a file download
+
+The exported PDF is machine-readable: any tool that can extract PDF attachments or XMP will find structured CV data inside it.
+
+**Requirements:** `puppeteer` must be installed (`npm install puppeteer`). If it is not available the route returns a 500 with a hint to fall back to Quick Print.
+
+## Testing
+
+```bash
+npm test
+# or
+npx vitest run
+```
+
+Tests use [Vitest](https://vitest.dev/) + jsdom. Config is in `vitest.config.ts`; test files live under `src/__tests__/`.
 
 ## License
 

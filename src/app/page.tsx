@@ -8,6 +8,7 @@ import { SectionEditor } from '@/components/Editor/SectionEditor'
 import { StyleEditor } from '@/components/Editor/StyleEditor'
 import { ScaledPreview } from '@/components/Preview/ScaledPreview'
 import { printCV } from '@/lib/print-cv'
+import { CV } from '@/types/cv'
 
 // dnd-kit generates aria IDs that differ between SSR and client → skip SSR
 const SectionList = dynamic(
@@ -26,8 +27,36 @@ type MobileTab = 'edit' | 'meta' | 'preview'
 type MobileEditView = 'list' | 'editor'
 type MobileMetaView = 'meta' | 'style' | 'import'
 
+async function exportPDF(cv: CV, onStart: () => void, onDone: () => void) {
+  onStart()
+  try {
+    const res = await fetch('/api/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cv }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      alert(`PDF export failed: ${err.detail ?? err.error ?? res.status}\n${err.hint ?? ''}`)
+      return
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(cv.meta.name || 'CV').replace(/[^a-z0-9]/gi, '_')}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert(`PDF export failed: ${e}`)
+  } finally {
+    onDone()
+  }
+}
+
 export default function Home() {
   const { cv } = useCVStore()
+  const [exporting, setExporting] = useState(false)
 
   // Desktop state
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('sections')
@@ -43,7 +72,7 @@ export default function Home() {
       {/* ── Desktop layout (md+) ─────────────────────────────────────── */}
       <div className="hidden md:flex h-full">
         {/* Left sidebar */}
-        <aside className="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
+        <aside className="w-72 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
           <div className="flex border-b border-gray-800 flex-shrink-0">
             {(['sections', 'meta', 'style', 'import'] as SidebarTab[]).map((tab) => (
               <button
@@ -81,12 +110,22 @@ export default function Home() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
             <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Preview</span>
-            <button
-              onClick={() => printCV('cv-preview', cv.meta.name || 'CV', cv.style.bgColor)}
-              className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
-            >
-              Export PDF
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => exportPDF(cv, () => setExporting(true), () => setExporting(false))}
+                disabled={exporting}
+                className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded transition-colors"
+              >
+                {exporting ? 'Exporting…' : 'Export PDF'}
+              </button>
+              <button
+                onClick={() => printCV('cv-preview', cv.meta.name || 'CV', cv.style.bgColor)}
+                className="px-3 py-1 text-xs font-mono text-gray-400 hover:text-gray-200 transition-colors"
+                title="Quick Print (browser dialog)"
+              >
+                Print
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-auto" style={{ backgroundColor: cv.style.bgColor }}>
             <ScaledPreview cv={cv} />
@@ -161,12 +200,22 @@ export default function Home() {
             <div className="flex flex-col h-full">
               <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
                 <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Preview</span>
-                <button
-                  onClick={() => printCV('cv-preview', cv.meta.name || 'CV', cv.style.bgColor)}
-                  className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
-                >
-                  Export PDF
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => exportPDF(cv, () => setExporting(true), () => setExporting(false))}
+                    disabled={exporting}
+                    className="px-3 py-1 text-xs font-mono bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded transition-colors"
+                  >
+                    {exporting ? 'Exporting…' : 'Export PDF'}
+                  </button>
+                  <button
+                    onClick={() => printCV('cv-preview', cv.meta.name || 'CV', cv.style.bgColor)}
+                    className="px-3 py-1 text-xs font-mono text-gray-400 hover:text-gray-200 transition-colors"
+                    title="Quick Print (browser dialog)"
+                  >
+                    Print
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-auto" style={{ backgroundColor: cv.style.bgColor }}>
                 <ScaledPreview cv={cv} />
