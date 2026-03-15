@@ -1,14 +1,18 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { parseEuropassXML, parseEuropassText, EuropassImportResult } from '@/lib/europass-parser'
 import { useCVStore } from '@/store/cv-store'
+import { CV, CVMeta, CVSection } from '@/types/cv'
+
+type ReviewPayload =
+  | { type: 'cvgen'; cv: CV }
+  | { type: 'europass'; meta: CVMeta; sections: CVSection[] }
 
 type ImportState =
   | { phase: 'idle' }
   | { phase: 'loading'; filename: string }
   | { phase: 'error'; message: string }
-  | { phase: 'review'; result: EuropassImportResult }
+  | { phase: 'review'; payload: ReviewPayload }
   | { phase: 'done' }
 
 function countEntries(content: string): number {
@@ -19,6 +23,7 @@ const PDF_ACCEPTED = ['.pdf', 'application/pdf']
 
 export function ImportTab() {
   const importCV = useCVStore((s) => s.importCV)
+  const replaceCV = useCVStore((s) => s.replaceCV)
   const [state, setState] = useState<ImportState>({ phase: 'idle' })
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -27,7 +32,7 @@ export function ImportTab() {
     const isPdf = file.name.endsWith('.pdf') || file.type === 'application/pdf'
 
     if (!isPdf) {
-      setState({ phase: 'error', message: 'Please select a EuroPass PDF file (.pdf).' })
+      setState({ phase: 'error', message: 'Please select a PDF file (.pdf).' })
       return
     }
 
@@ -43,23 +48,26 @@ export function ImportTab() {
       formData.append('file', file)
       const res = await fetch('/api/import', { method: 'POST', body: formData })
 
+      const body = await res.json().catch(() => ({ error: res.statusText }))
+
       if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: res.statusText }))
         throw new Error(body.error ?? `Server error ${res.status}`)
       }
 
-      const body = await res.json()
-
-      let result: EuropassImportResult
-      if (body.xml) {
-        result = parseEuropassXML(body.xml)
-      } else if (body.text) {
-        result = parseEuropassText(body.text)
+      if (body.type === 'cvgen') {
+        setState({ phase: 'review', payload: { type: 'cvgen', cv: body.cv as CV } })
+      } else if (body.type === 'europass') {
+        setState({
+          phase: 'review',
+          payload: {
+            type: 'europass',
+            meta: body.meta as CVMeta,
+            sections: body.sections as CVSection[],
+          },
+        })
       } else {
         throw new Error('No CV data could be extracted from this PDF.')
       }
-
-      setState({ phase: 'review', result })
     } catch (err) {
       setState({ phase: 'error', message: (err as Error).message })
     }
@@ -99,7 +107,7 @@ export function ImportTab() {
         >
           <span className="text-2xl select-none">📄</span>
           <span className="text-sm font-mono text-gray-300 text-center">
-            Drop EuroPass PDF here
+            Drop a PDF here
           </span>
           <span className="text-xs font-mono text-gray-500 text-center">
             or click to browse
@@ -113,9 +121,9 @@ export function ImportTab() {
           />
         </div>
         <p className="text-xs font-mono text-gray-600 text-center leading-relaxed">
-          Imports EuroPass PDF exports (all versions).
+          Imports cvgen and EuroPass PDF exports.
           <br />
-          Your current theme and colors are preserved.
+          cvgen PDFs restore style, colors and layout.
         </p>
       </div>
     )
@@ -166,8 +174,11 @@ export function ImportTab() {
   }
 
   // ── review ────────────────────────────────────────────────────────────────
-  const { result } = state
-  const { meta } = result
+  const { payload } = state
+  const isCvgen = payload.type === 'cvgen'
+
+  const meta = isCvgen ? payload.cv.meta : payload.meta
+  const sections = isCvgen ? payload.cv.sections : payload.sections
 
   const photoSizeKb = meta.photoUrl
     ? Math.round((meta.photoUrl.length * 3) / (4 * 1024))
@@ -181,8 +192,35 @@ export function ImportTab() {
     ['location', meta.location],
   ]
 
+  function handleConfirm() {
+    if (isCvgen) {
+      replaceCV(payload.cv)
+    } else {
+      importCV(payload.meta, payload.sections)
+    }
+    setState({ phase: 'done' })
+  }
+
   return (
     <div className="p-4 flex flex-col gap-4 overflow-y-auto">
+
+      {/* Source badge */}
+      <div className="flex items-center gap-2">
+        {isCvgen ? (
+          <span className="text-xs font-mono bg-green-900/50 text-green-400 border border-green-700/60 px-2 py-0.5 rounded">
+            cvgen
+          </span>
+        ) : (
+          <span className="text-xs font-mono bg-blue-900/50 text-blue-400 border border-blue-700/60 px-2 py-0.5 rounded">
+            EuroPass
+          </span>
+        )}
+        {isCvgen && (
+          <span className="text-xs font-mono text-green-500/80">
+            Full fidelity — style, colors and layout preserved
+          </span>
+        )}
+      </div>
 
       {/* Photo thumbnail */}
       {meta.photoUrl && (
@@ -244,10 +282,10 @@ export function ImportTab() {
       {/* Sections list */}
       <div>
         <p className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-2">
-          Sections ({result.sections.length})
+          Sections ({sections.length})
         </p>
         <div className="flex flex-col gap-1">
-          {result.sections.map((sec, i) => {
+          {sections.map((sec, i) => {
             const count = countEntries(sec.content)
             return (
               <div
@@ -264,32 +302,19 @@ export function ImportTab() {
               </div>
             )
           })}
-          {result.sections.length === 0 && (
+          {sections.length === 0 && (
             <p className="text-xs font-mono text-gray-600">No sections found.</p>
           )}
         </div>
       </div>
 
-      {/* Warnings */}
-      {result.warnings.length > 0 && (
-        <div className="rounded-lg bg-yellow-950/30 border border-yellow-800/60 p-3 flex flex-col gap-1.5">
-          <p className="text-xs font-mono text-yellow-500 uppercase tracking-wide mb-1">Warnings</p>
-          {result.warnings.map((w, i) => (
-            <p key={i} className="text-xs font-mono text-yellow-400/80 leading-relaxed">&bull; {w}</p>
-          ))}
-        </div>
-      )}
-
       {/* Actions */}
       <div className="flex gap-2">
         <button
-          onClick={() => {
-            importCV(result.meta, result.sections)
-            setState({ phase: 'done' })
-          }}
+          onClick={handleConfirm}
           className="flex-1 py-2 text-sm font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
         >
-          Import
+          {isCvgen ? 'Restore CV' : 'Import CV'}
         </button>
         <button
           onClick={reset}

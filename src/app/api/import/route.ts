@@ -1,24 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { inflateRawSync, inflateSync } from 'zlib'
+import { PDFDocument } from 'pdf-lib'
+import type { CV, CVMeta, CVSection } from '@/types/cv'
 
 export const runtime = 'nodejs'
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
-/**
- * POST /api/import
- * Accepts FormData with a `file` field containing a EuroPass PDF.
- *
- * Returns one of:
- *   { xml: string }   — when an embedded XML attachment was found and extracted
- *   { text: string }  — when no embedded XML was found but the PDF has extractable text
- *
- * Two EuroPass PDF variants exist in the wild:
- *   1. PDFs with an embedded attachment.xml (SkillsPassport or Candidate schema)
- *      → extracted directly from the raw PDF binary (no worker needed)
- *   2. Fully compressed PDFs with no embedded XML (new EuroPass builder as of 2024)
- *      → text extracted with pdfjs-dist; caller parses the structured text
- */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let formData: FormData
   try {
@@ -45,20 +33,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // ── Step 1: try to extract embedded XML ──────────────────────────────────
+    // ── Step 1: cvgen PDF detection (highest priority) ────────────────────────
+    const cvgenResult = await extractCvgenAttachment(buf)
+    if (cvgenResult) {
+      return NextResponse.json({ type: 'cvgen', cv: cvgenResult })
+    }
+
+    // ── Step 2: EuroPass XML detection ────────────────────────────────────────
     const xml = extractXmlFromPdf(buf)
     if (xml) {
-      return NextResponse.json({ xml })
+      const europassResult = await parseEuropassOnServer(xml)
+      if (europassResult) {
+        return NextResponse.json({
+          type: 'europass',
+          meta: europassResult.meta,
+          sections: europassResult.sections,
+        })
+      }
     }
 
-    // ── Step 2: fall back to pdfjs text extraction ───────────────────────────
-    const text = await extractTextFromPdf(buf)
-    if (text && text.trim().length > 100) {
-      return NextResponse.json({ text })
-    }
-
+    // ── Step 3: Unsupported format ────────────────────────────────────────────
     return NextResponse.json(
-      { error: 'Could not extract any CV data from this PDF. Please make sure it is a EuroPass PDF.' },
+      { error: 'Unsupported PDF format. Only cvgen and EuroPass PDFs are supported.' },
       { status: 422 }
     )
   } catch (err) {
@@ -67,36 +63,136 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 }
 
+// ── pdf-lib internal helper ────────────────────────────────────────────────
+// lookupMaybe overloads require a type argument; we traverse dynamically so we
+// escape via an any cast isolated to this one helper.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lookupAny(context: unknown, ref: unknown): unknown {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (context as any).lookup?.(ref) ?? undefined
+}
+
+// ── cvgen attachment extractor ─────────────────────────────────────────────
+
+async function extractCvgenAttachment(buf: Buffer): Promise<CV | null> {
+  let doc: PDFDocument
+  try {
+    doc = await PDFDocument.load(buf, { ignoreEncryption: true })
+  } catch {
+    return null
+  }
+
+  // pdf-lib does not expose a high-level attachments API; walk the Names tree manually
+  const catalog = doc.catalog
+  const namesDict = catalog.get(catalog.context.obj('Names'))
+  if (!namesDict) return null
+
+  const embeddedFiles = (namesDict as unknown as { get: (k: unknown) => unknown }).get(
+    catalog.context.obj('EmbeddedFiles')
+  )
+  if (!embeddedFiles) return null
+
+  // Resolve indirect references
+  const ef = lookupAny(doc.context, embeddedFiles)
+  if (!ef) return null
+
+  const kidsOrNames = (ef as unknown as { get: (k: unknown) => unknown }).get(
+    doc.context.obj('Names')
+  )
+  if (!kidsOrNames) return null
+
+  const namesArray = lookupAny(doc.context, kidsOrNames)
+  if (!namesArray) return null
+
+  // namesArray is a PDFArray of alternating [name, filespec, name, filespec, ...]
+  const arr = namesArray as unknown as { size: () => number; lookup: (i: number) => unknown }
+  const len = arr.size()
+
+  for (let i = 0; i < len - 1; i += 2) {
+    const nameObj = arr.lookup(i)
+    const nameStr = (nameObj as unknown as { decodeText?: () => string; asString?: () => string })
+      ?.decodeText?.() ?? (nameObj as unknown as { decodeText?: () => string; asString?: () => string })?.asString?.() ?? ''
+
+    if (nameStr !== 'cv-source.json') continue
+
+    const filespecRef = arr.lookup(i + 1)
+    const filespec = lookupAny(doc.context, filespecRef)
+    if (!filespec) continue
+
+    const efDict = (filespec as unknown as { get: (k: unknown) => unknown }).get(doc.context.obj('EF'))
+    if (!efDict) continue
+
+    const efResolved = lookupAny(doc.context, efDict)
+    if (!efResolved) continue
+
+    const fObj = (efResolved as unknown as { get: (k: unknown) => unknown }).get(doc.context.obj('F'))
+    if (!fObj) continue
+
+    const embeddedFileStream = lookupAny(doc.context, fObj)
+    if (!embeddedFileStream) continue
+
+    const bytes = (embeddedFileStream as unknown as { getContents?: () => Uint8Array; contents?: Uint8Array })
+      ?.getContents?.() ?? (embeddedFileStream as unknown as { getContents?: () => Uint8Array; contents?: Uint8Array })?.contents
+
+    if (!bytes) continue
+
+    const json = new TextDecoder().decode(bytes)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(json)
+    } catch {
+      return null
+    }
+
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'meta' in parsed &&
+      'sections' in parsed
+    ) {
+      return parsed as CV
+    }
+  }
+
+  return null
+}
+
+// ── EuroPass XML parser (server-side, polyfills DOM with jsdom) ───────────
+
+async function parseEuropassOnServer(
+  xml: string
+): Promise<{ meta: CVMeta; sections: Omit<CVSection, 'id'>[] } | null> {
+  const { JSDOM } = await import('jsdom')
+  const dom = new JSDOM('')
+  const g = globalThis as Record<string, unknown>
+  const prev = { DOMParser: g.DOMParser, document: g.document, Node: g.Node }
+  g.DOMParser = dom.window.DOMParser
+  g.document = dom.window.document
+  g.Node = dom.window.Node
+  try {
+    const { parseEuropassXML } = await import('@/lib/europass-parser')
+    const result = parseEuropassXML(xml)
+    return { meta: result.meta, sections: result.sections }
+  } catch {
+    return null
+  } finally {
+    g.DOMParser = prev.DOMParser
+    g.document = prev.document
+    g.Node = prev.Node
+  }
+}
+
 // ── PDF binary XML extractor ───────────────────────────────────────────────
 
-/**
- * Extracts embedded EuroPass XML from a PDF buffer.
- *
- * Handles both:
- *   - Old format: <SkillsPassport> root element
- *   - New format: <Candidate> root element (EuroPass v4 / HR-XML 3.0)
- *
- * Strategy:
- *   1. Look for <?xml in raw bytes — most EuroPass PDFs store the XML uncompressed.
- *      Byte-level search is used so that the result can be decoded as UTF-8 (not
- *      latin1). Decoding as latin1 was the previous bug: multi-byte UTF-8 sequences
- *      (e.g. Romanian ș = 0xC8 0x99) produced U+0099, a C1 control character that is
- *      illegal in XML 1.0 and caused the browser's DOMParser to reject the document.
- *   2. Fall back to decompressing FlateDecode streams (pdf-lib PDFs use this).
- */
 function extractXmlFromPdf(buf: Buffer): string | null {
-  // All search strings are ASCII so findKeyword (byte-level) works for both paths.
   const xmlStartByte = findKeyword(buf, '<?xml', 0)
   if (xmlStartByte !== -1) {
     for (const rootTag of ['</Candidate>', '</SkillsPassport>']) {
       const endByte = findKeyword(buf, rootTag, xmlStartByte)
       if (endByte !== -1) {
-        // Decode the slice as UTF-8 to preserve non-ASCII characters correctly.
         return buf.slice(xmlStartByte, endByte + rootTag.length).toString('utf8')
       }
     }
-    // Fallback: try a generic close tag within a short window of the <?xml start.
-    // latin1 is safe here because we only look at ASCII tag names.
     const raw = buf.toString('latin1')
     const genericEnd = raw.indexOf('</', xmlStartByte + 5)
     if (genericEnd !== -1) {
@@ -107,7 +203,6 @@ function extractXmlFromPdf(buf: Buffer): string | null {
     }
   }
 
-  // Try compressed streams — iterate over all "stream ... endstream" blocks
   return extractCompressedXmlStream(buf)
 }
 
@@ -118,15 +213,15 @@ function extractCompressedXmlStream(buf: Buffer): string | null {
     const streamIdx = findKeyword(buf, 'stream', offset)
     if (streamIdx === -1) break
 
-    let contentStart = streamIdx + 6 // length of 'stream'
-    if (buf[contentStart] === 0x0d) contentStart++ // \r
-    if (buf[contentStart] === 0x0a) contentStart++ // \n
+    let contentStart = streamIdx + 6
+    if (buf[contentStart] === 0x0d) contentStart++
+    if (buf[contentStart] === 0x0a) contentStart++
 
     const endStreamIdx = findKeyword(buf, 'endstream', contentStart)
     if (endStreamIdx === -1) break
 
     const streamData = buf.slice(contentStart, endStreamIdx)
-    offset = endStreamIdx + 9 // length of 'endstream'
+    offset = endStreamIdx + 9
 
     const xml = tryDecodeAsXml(streamData)
     if (xml) return xml
@@ -183,49 +278,3 @@ function tryParseXml(text: string): string | null {
   return null
 }
 
-// ── PDF text extractor (pdfjs-dist fallback) ───────────────────────────────
-
-/**
- * Extracts plain text from a PDF using pdfjs-dist (legacy Node.js build).
- * Used as a fallback when no embedded XML is found.
- * Returns concatenated text from all pages, separated by newlines.
- */
-async function extractTextFromPdf(buf: Buffer): Promise<string> {
-  // pdfjs-dist requires DOMMatrix and other browser APIs. Polyfill minimally.
-  if (typeof (globalThis as Record<string, unknown>).DOMMatrix === 'undefined') {
-    ;(globalThis as Record<string, unknown>).DOMMatrix = class DOMMatrix {
-      a = 1; b = 0; c = 0; d = 1; e = 0; f = 0
-    }
-  }
-  if (typeof (globalThis as Record<string, unknown>).ImageData === 'undefined') {
-    ;(globalThis as Record<string, unknown>).ImageData = class ImageData {
-      width: number; height: number; data: Uint8ClampedArray
-      constructor(w: number, h: number) {
-        this.width = w; this.height = h
-        this.data = new Uint8ClampedArray(w * h * 4)
-      }
-    }
-  }
-  if (typeof (globalThis as Record<string, unknown>).Path2D === 'undefined') {
-    ;(globalThis as Record<string, unknown>).Path2D = class Path2D {}
-  }
-
-  // Dynamic import to avoid issues when XML extraction succeeds (no need to load pdfjs)
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as string)
-  const getDocument = (pdfjsLib as unknown as { getDocument: typeof import('pdfjs-dist').getDocument }).getDocument
-
-  const task = getDocument({ data: new Uint8Array(buf), disableFontFace: true, verbosity: 0 })
-  const pdfDoc = await task.promise
-
-  const pages: string[] = []
-  for (let i = 1; i <= pdfDoc.numPages; i++) {
-    const page = await pdfDoc.getPage(i)
-    const textContent = await page.getTextContent()
-    const pageText = (textContent.items as Array<{ str: string }>)
-      .map(item => item.str)
-      .join(' ')
-    pages.push(pageText)
-  }
-
-  return pages.join('\n\n')
-}
