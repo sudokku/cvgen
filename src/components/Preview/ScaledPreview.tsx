@@ -6,6 +6,8 @@ import { CVPreview } from './CVPreview'
 
 // Must match the maxWidth set on #cv-preview in CVPreview.tsx
 const DESIGN_WIDTH = 860
+// Padding on each side around the page in the preview panel
+const PAGE_PADDING = 24
 
 /**
  * Renders CVPreview at its natural DESIGN_WIDTH, then zooms the whole block
@@ -21,7 +23,7 @@ export function ScaledPreview({ cv }: { cv: CV }) {
     const el = containerRef.current
     if (!el) return
     const obs = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width
+      const w = entry.contentRect.width - PAGE_PADDING * 2
       setZoom(w >= DESIGN_WIDTH ? 1 : w / DESIGN_WIDTH)
     })
     obs.observe(el)
@@ -29,7 +31,7 @@ export function ScaledPreview({ cv }: { cv: CV }) {
   }, [])
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
+    <div ref={containerRef} style={{ width: '100%', padding: PAGE_PADDING, boxSizing: 'border-box' }}>
       <div style={{ width: DESIGN_WIDTH, zoom, margin: '0 auto' }}>
         <CVPreview cv={cv} />
       </div>

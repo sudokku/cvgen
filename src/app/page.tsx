@@ -72,7 +72,7 @@ export default function Home() {
       {/* ── Desktop layout (md+) ─────────────────────────────────────── */}
       <div className="hidden md:flex h-full">
         {/* Left sidebar */}
-        <aside className="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
+        <aside className="w-72 flex-shrink-0 border-r border-gray-800 flex flex-col bg-gray-900">
           <div className="flex border-b border-gray-800 flex-shrink-0">
             {(['sections', 'meta', 'style', 'import'] as SidebarTab[]).map((tab) => (
               <button

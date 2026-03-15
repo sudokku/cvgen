@@ -393,10 +393,10 @@ export function CVPreview({ cv }: Props) {
             )}
 
             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              {contactLinks.map(({ label, href }) =>
+              {contactLinks.map(({ label, href }, i) =>
                 href ? (
                   <a
-                    key={label}
+                    key={i}
                     href={href}
                     target={href.startsWith('mailto') ? undefined : '_blank'}
                     rel="noreferrer"
@@ -405,7 +405,7 @@ export function CVPreview({ cv }: Props) {
                     {label}
                   </a>
                 ) : (
-                  <span key={label} style={{ color: style.mutedColor, letterSpacing: '0.01em' }}>
+                  <span key={i} style={{ color: style.mutedColor, letterSpacing: '0.01em' }}>
                     {label}
                   </span>
                 )
