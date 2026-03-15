@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 import { CV } from '@/types/cv'
 import { injectMetadata } from '@/lib/cv-metadata'
+import { launchBrowser } from '@/lib/browser'
 
 interface CacheEntry {
   cv: CV
@@ -35,23 +36,9 @@ export async function POST(req: NextRequest) {
   const baseUrl = req.nextUrl.origin
   const printUrl = `${baseUrl}/print?id=${id}`
 
-  let puppeteer: typeof import('puppeteer')
-  try {
-    puppeteer = await import('puppeteer')
-  } catch {
-    cvCache.delete(id)
-    return NextResponse.json(
-      { error: 'puppeteer not available', hint: 'npm install puppeteer' },
-      { status: 500 }
-    )
-  }
-
   let browser
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    })
+    browser = await launchBrowser()
     const page = await browser.newPage()
     await page.goto(printUrl, { waitUntil: 'networkidle0', timeout: 25_000 })
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true })
