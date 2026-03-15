@@ -7,6 +7,7 @@ import { JsonSectionBlock, JKey, JStr, JPunct } from './JsonSectionBlock'
 
 interface Props {
   cv: CV
+  containerStyle?: React.CSSProperties
 }
 
 function Rule({ style, char = '─' }: { style: CVStyle; char?: string }) {
@@ -328,7 +329,7 @@ function JsonHeaderBlock({ cv }: { cv: CV }) {
   )
 }
 
-export function CVPreview({ cv }: Props) {
+export function CVPreview({ cv, containerStyle }: Props) {
   const { meta, sections, style } = cv
 
   // Build link list from meta.links (new) or fall back to deprecated individual fields
@@ -360,6 +361,7 @@ export function CVPreview({ cv }: Props) {
         lineHeight: 1.6,
         maxWidth: '860px',
         margin: '0 auto',
+        ...containerStyle,
       }}
     >
       {/* ── Header ── */}

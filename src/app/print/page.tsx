@@ -74,6 +74,54 @@ function PrintContent() {
   return (
     <>
       <style>{`
+        @font-face {
+          font-family: 'Monaspace Neon';
+          src: url('/fonts/MonaspaceNeon-Regular.woff2') format('woff2');
+          font-weight: 400;
+          font-display: block;
+        }
+        @font-face {
+          font-family: 'Monaspace Neon';
+          src: url('/fonts/MonaspaceNeon-Bold.woff2') format('woff2');
+          font-weight: 700;
+          font-display: block;
+        }
+        @font-face {
+          font-family: 'Fira Code';
+          src: url('/fonts/FiraCode-Regular.woff2') format('woff2');
+          font-weight: 400;
+          font-display: block;
+        }
+        @font-face {
+          font-family: 'Fira Code';
+          src: url('/fonts/FiraCode-Bold.woff2') format('woff2');
+          font-weight: 700;
+          font-display: block;
+        }
+        @font-face {
+          font-family: 'JetBrains Mono';
+          src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+          font-weight: 400;
+          font-display: block;
+        }
+        @font-face {
+          font-family: 'JetBrains Mono';
+          src: url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+          font-weight: 700;
+          font-display: block;
+        }
+        @font-face {
+          font-family: 'Cascadia Code';
+          src: url('/fonts/CascadiaCode-Regular.woff2') format('woff2');
+          font-weight: 400;
+          font-display: block;
+        }
+        @font-face {
+          font-family: 'Cascadia Code';
+          src: url('/fonts/CascadiaCode-Bold.woff2') format('woff2');
+          font-weight: 700;
+          font-display: block;
+        }
         *, *::before, *::after {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
@@ -82,10 +130,14 @@ function PrintContent() {
         html, body {
           margin: 0;
           padding: 0;
+          width: 100%;
           background: ${cv.style.bgColor};
         }
       `}</style>
-      <CVPreview cv={cv} />
+      <div style={{ width: '100%', boxSizing: 'border-box' }}>
+        <CVPreview cv={cv} containerStyle={{ paddingTop: 0, paddingBottom: 0 }} />
+      </div>
+      <div id="cv-print-ready" style={{ display: 'none' }} />
     </>
   )
 }

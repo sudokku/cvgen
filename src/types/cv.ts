@@ -78,7 +78,7 @@ export interface CVStyle {
 export const FONT_OPTIONS = [
   {
     label: 'GitHub Mono (system)',
-    value: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+    value: '"Monaspace Neon", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
   },
   {
     label: 'Monaspace Neon',
