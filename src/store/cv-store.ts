@@ -50,6 +50,7 @@ interface CVStore {
   selectSection: (id: string | null) => void
   updateDocMode: (mode: DocMode) => void
   importCV: (meta: CVMeta, sections: Omit<CVSection, 'id'>[]) => void
+  replaceCV: (cv: CV) => void
 }
 
 function sectionDefaults(type: SectionType): Partial<CVSection> {
@@ -138,6 +139,12 @@ export const useCVStore = create<CVStore>()(
             cv: { ...s.cv, meta, sections: materialisedSections },
             selectedSectionId: materialisedSections[0]?.id ?? null,
           }
+        }),
+
+      replaceCV: (cv) =>
+        set({
+          cv,
+          selectedSectionId: cv.sections[0]?.id ?? null,
         }),
     }),
     {
