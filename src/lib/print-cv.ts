@@ -48,12 +48,12 @@ export function printCV(elementId: string, filename = 'CV', bgColor = '#000000')
 
   printWindow.document.close()
 
-  // Wait for fonts/images to load, then print.
+  // Wait for all fonts to decode before printing (fonts.ready is more reliable than a fixed timeout).
   printWindow.onload = () => {
-    setTimeout(() => {
+    printWindow.document.fonts.ready.then(() => {
       printWindow.focus()
       printWindow.print()
       printWindow.addEventListener('afterprint', () => printWindow.close())
-    }, 400)
+    })
   }
 }
