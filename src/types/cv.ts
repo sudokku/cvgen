@@ -32,8 +32,10 @@ export interface CVMeta {
   links?: CVLink[]
   photoUrl?: string
   photoAscii?: string
-  photoWidth?: number   // max ASCII cols (default 50); API fits aspect ratio within this bound
-  photoHeight?: number  // max ASCII rows (default 25); API fits aspect ratio within this bound
+  photoAsciiColors?: string[][]  // per-cell hex colours, parallel to photoAscii lines
+  photoWidth?: number   // visual width in "cols at base density"; API fits aspect ratio
+  photoHeight?: number  // visual height in "rows at base density"
+  photoDensity?: number // 1 / 2 / 3 — sub-pixel density multiplier (smaller chars per cell)
   photoMode?: 'ascii' | 'image'
 }
 
@@ -46,8 +48,10 @@ export interface CVSection {
   layout?: TimelineLayout
   photoUrl?: string
   photoAscii?: string
-  photoWidth?: number   // max ASCII cols (default 80); API fits aspect ratio within this bound
-  photoHeight?: number  // max ASCII rows (default 40); API fits aspect ratio within this bound
+  photoAsciiColors?: string[][]
+  photoWidth?: number   // visual width baseline (cols at density=1)
+  photoHeight?: number  // visual height baseline (rows at density=1)
+  photoDensity?: number // 1 / 2 / 3 — sub-pixel density multiplier
   photoMode?: 'ascii' | 'image'
   renderMode?: RenderMode  // only used when CV.docMode === 'per-section'
   sectionColors?: Partial<CVStyle>

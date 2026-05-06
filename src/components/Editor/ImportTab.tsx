@@ -202,7 +202,8 @@ export function ImportTab() {
   }
 
   return (
-    <div className="p-4 flex flex-col gap-4 overflow-y-auto">
+    <div className="flex flex-col h-full">
+      <div className="p-4 flex flex-col gap-4 overflow-y-auto flex-1 pb-2">
 
       {/* Source badge */}
       <div className="flex items-center gap-2">
@@ -308,13 +309,15 @@ export function ImportTab() {
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2">
+      </div>{/* end scroll area */}
+
+      {/* Actions — pinned to bottom so the confirm button is always visible */}
+      <div className="flex gap-2 p-4 pt-2 border-t border-gray-800 bg-gray-900 flex-shrink-0">
         <button
           onClick={handleConfirm}
           className="flex-1 py-2 text-sm font-mono bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
         >
-          {isCvgen ? 'Restore CV' : 'Import CV'}
+          {isCvgen ? 'Confirm restore' : 'Confirm import'}
         </button>
         <button
           onClick={reset}

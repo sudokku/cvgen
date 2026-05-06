@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { inflateRawSync, inflateSync } from 'zlib'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, decodePDFRawStream } from 'pdf-lib'
 import type { CV, CVMeta, CVSection } from '@/types/cv'
 
 export const runtime = 'nodejs'
@@ -131,8 +131,18 @@ async function extractCvgenAttachment(buf: Buffer): Promise<CV | null> {
     const embeddedFileStream = lookupAny(doc.context, fObj)
     if (!embeddedFileStream) continue
 
-    const bytes = (embeddedFileStream as unknown as { getContents?: () => Uint8Array; contents?: Uint8Array })
-      ?.getContents?.() ?? (embeddedFileStream as unknown as { getContents?: () => Uint8Array; contents?: Uint8Array })?.contents
+    // Embedded streams are usually FlateDecode-compressed; decode the filter
+    // chain first. decodePDFRawStream applies whatever Filter the stream
+    // declares (typically /FlateDecode for our exports).
+    let bytes: Uint8Array | undefined
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      bytes = decodePDFRawStream(embeddedFileStream as any).decode()
+    } catch {
+      // Fall back to raw contents (uncompressed streams or unknown filter).
+      bytes = (embeddedFileStream as unknown as { getContents?: () => Uint8Array; contents?: Uint8Array })
+        ?.getContents?.() ?? (embeddedFileStream as unknown as { getContents?: () => Uint8Array; contents?: Uint8Array })?.contents
+    }
 
     if (!bytes) continue
 

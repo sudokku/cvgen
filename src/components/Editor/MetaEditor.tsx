@@ -7,6 +7,7 @@ import { CVLink } from '@/types/cv'
 
 const DEFAULT_MAX_COLS = 50
 const DEFAULT_MAX_ROWS = 25
+const DEFAULT_DENSITY = 2
 
 export function MetaEditor() {
   const { cv, updateMeta } = useCVStore()
@@ -16,6 +17,7 @@ export function MetaEditor() {
 
   const maxCols = meta.photoWidth ?? DEFAULT_MAX_COLS
   const maxRows = meta.photoHeight ?? DEFAULT_MAX_ROWS
+  const density = meta.photoDensity ?? DEFAULT_DENSITY
 
   const field = (
     label: string,
@@ -44,33 +46,43 @@ export function MetaEditor() {
       const reader = new FileReader()
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string
-        updateMeta({ photoUrl: dataUrl, photoAscii: undefined })
-        const ascii = await generate(dataUrl, { maxCols, maxRows })
-        if (ascii) updateMeta({ photoAscii: ascii })
+        updateMeta({ photoUrl: dataUrl, photoAscii: undefined, photoAsciiColors: undefined })
+        const result = await generate(dataUrl, { maxCols: maxCols * density, maxRows: maxRows * density })
+        if (result) updateMeta({ photoAscii: result.ascii, photoAsciiColors: result.colors })
       }
       reader.readAsDataURL(file)
     },
-    [updateMeta, generate, maxCols, maxRows]
+    [updateMeta, generate, maxCols, maxRows, density]
   )
 
   const handleMaxColsChange = useCallback(
     async (newMaxCols: number) => {
-      updateMeta({ photoWidth: newMaxCols, photoAscii: undefined })
+      updateMeta({ photoWidth: newMaxCols, photoAscii: undefined, photoAsciiColors: undefined })
       if (!meta.photoUrl) return
-      const ascii = await generate(meta.photoUrl, { maxCols: newMaxCols, maxRows })
-      if (ascii) updateMeta({ photoAscii: ascii })
+      const result = await generate(meta.photoUrl, { maxCols: newMaxCols * density, maxRows: maxRows * density })
+      if (result) updateMeta({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [meta.photoUrl, maxRows, updateMeta, generate]
+    [meta.photoUrl, maxRows, density, updateMeta, generate]
   )
 
   const handleMaxRowsChange = useCallback(
     async (newMaxRows: number) => {
-      updateMeta({ photoHeight: newMaxRows, photoAscii: undefined })
+      updateMeta({ photoHeight: newMaxRows, photoAscii: undefined, photoAsciiColors: undefined })
       if (!meta.photoUrl) return
-      const ascii = await generate(meta.photoUrl, { maxCols, maxRows: newMaxRows })
-      if (ascii) updateMeta({ photoAscii: ascii })
+      const result = await generate(meta.photoUrl, { maxCols: maxCols * density, maxRows: newMaxRows * density })
+      if (result) updateMeta({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [meta.photoUrl, maxCols, updateMeta, generate]
+    [meta.photoUrl, maxCols, density, updateMeta, generate]
+  )
+
+  const handleDensityChange = useCallback(
+    async (newDensity: number) => {
+      updateMeta({ photoDensity: newDensity, photoAscii: undefined, photoAsciiColors: undefined })
+      if (!meta.photoUrl) return
+      const result = await generate(meta.photoUrl, { maxCols: maxCols * newDensity, maxRows: maxRows * newDensity })
+      if (result) updateMeta({ photoAscii: result.ascii, photoAsciiColors: result.colors })
+    },
+    [meta.photoUrl, maxCols, maxRows, updateMeta, generate]
   )
 
   // ── Links management ──────────────────────────────────────────────────────
@@ -110,7 +122,7 @@ export function MetaEditor() {
         <div className="relative">
           {meta.photoUrl && (
             <button
-              onClick={() => updateMeta({ photoUrl: undefined, photoAscii: undefined })}
+              onClick={() => updateMeta({ photoUrl: undefined, photoAscii: undefined, photoAsciiColors: undefined })}
               className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 border border-gray-600 text-gray-400 hover:text-red-400 hover:border-red-500 transition-colors text-xs leading-none"
               title="Remove photo"
             >
@@ -182,7 +194,7 @@ export function MetaEditor() {
             <input
               type="range"
               min={20}
-              max={100}
+              max={120}
               step={5}
               value={maxCols}
               onChange={(e) => handleMaxColsChange(Number(e.target.value))}
@@ -196,13 +208,31 @@ export function MetaEditor() {
             <input
               type="range"
               min={5}
-              max={60}
+              max={80}
               step={1}
               value={maxRows}
               onChange={(e) => handleMaxRowsChange(Number(e.target.value))}
               className="w-full accent-blue-500"
             />
           </label>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-mono text-gray-500">density — {density}x</span>
+            <div className="flex gap-1">
+              {[1, 2, 3].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => handleDensityChange(d)}
+                  className={`flex-1 px-2 py-0.5 rounded text-xs font-mono border transition-colors ${
+                    density === d
+                      ? 'border-blue-500 text-blue-400 bg-blue-950'
+                      : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                  }`}
+                >
+                  {d}x
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

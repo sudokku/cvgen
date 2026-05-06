@@ -9,7 +9,7 @@ interface AsciiOptions {
  * Compresses an image dataUrl to a smaller JPEG using a canvas element.
  * Limits the longest dimension to `maxDim` pixels and encodes at the given quality.
  */
-function compressImage(dataUrl: string, maxDim = 800, quality = 0.85): Promise<string> {
+function compressImage(dataUrl: string, maxDim = 1400, quality = 0.9): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image()
     img.onload = () => {
@@ -37,7 +37,10 @@ function compressImage(dataUrl: string, maxDim = 800, quality = 0.85): Promise<s
 export function useAsciiGenerator() {
   const abortRef = useRef<AbortController | null>(null)
 
-  const generate = useCallback(async (dataUrl: string, opts: AsciiOptions = {}): Promise<string | null> => {
+  const generate = useCallback(async (
+    dataUrl: string,
+    opts: AsciiOptions = {},
+  ): Promise<{ ascii: string; colors: string[][] } | null> => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -55,8 +58,8 @@ export function useAsciiGenerator() {
         }),
         signal: controller.signal,
       })
-      const { ascii } = await res.json()
-      return ascii as string
+      const { ascii, colors } = await res.json()
+      return { ascii: ascii as string, colors: (colors ?? []) as string[][] }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return null
       console.error('ASCII generation failed', err)

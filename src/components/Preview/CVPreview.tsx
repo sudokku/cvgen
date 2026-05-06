@@ -3,6 +3,7 @@
 import { CV, CVLink, CVSection, CVStyle, DocMode, RenderMode } from '@/types/cv'
 import { TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
+import { AsciiArt } from './AsciiArt'
 import { JsonSectionBlock, JKey, JStr, JPunct } from './JsonSectionBlock'
 
 interface Props {
@@ -116,21 +117,17 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
               }}
             />
           ) : section.photoAscii ? (
-            <pre
-              style={{
-                fontFamily: 'inherit',
-                fontSize: `${Math.max(effectiveStyle.fontSize - 3, 8)}px`,
-                lineHeight: 1,
-                color: effectiveStyle.mutedColor,
-                margin: 0,
-                whiteSpace: 'pre',
-                backgroundColor: effectiveStyle.codeBgColor,
-                padding: '12px',
-                borderRadius: '4px',
-              }}
-            >
-              {clipAscii(section.photoAscii, section.photoHeight ?? 40)}
-            </pre>
+            <AsciiArt
+              ascii={clipAscii(section.photoAscii, (section.photoHeight ?? 40) * (section.photoDensity ?? 1))}
+              colors={section.photoAsciiColors}
+              baseCols={section.photoWidth ?? 80}
+              density={section.photoDensity ?? 1}
+              baseFontSize={Math.max(effectiveStyle.fontSize - 3, 8)}
+              fallbackColor={effectiveStyle.mutedColor}
+              background={effectiveStyle.codeBgColor}
+              padding="12px"
+              borderRadius="4px"
+            />
           ) : (
             <span style={{ color: effectiveStyle.mutedColor, fontStyle: 'italic' }}>
               {`<!-- upload a photo to generate ASCII art -->`}
@@ -430,19 +427,14 @@ export function CVPreview({ cv, containerStyle }: Props) {
               }}
             />
           ) : meta.photoAscii ? (
-            <pre
-              style={{
-                fontFamily: 'inherit',
-                fontSize: `${Math.max(style.fontSize - 4, 7)}px`,
-                lineHeight: 1,
-                color: style.mutedColor,
-                margin: 0,
-                whiteSpace: 'pre',
-                flexShrink: 0,
-              }}
-            >
-              {clipAscii(meta.photoAscii, meta.photoHeight ?? 25)}
-            </pre>
+            <AsciiArt
+              ascii={clipAscii(meta.photoAscii, (meta.photoHeight ?? 25) * (meta.photoDensity ?? 1))}
+              colors={meta.photoAsciiColors}
+              baseCols={meta.photoWidth ?? 50}
+              density={meta.photoDensity ?? 1}
+              baseFontSize={Math.max(style.fontSize - 4, 7)}
+              fallbackColor={style.mutedColor}
+            />
           ) : (
             <PhotoPlaceholder
               cols={meta.photoWidth ?? 25}
