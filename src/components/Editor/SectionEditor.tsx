@@ -8,6 +8,7 @@ import { useAsciiGenerator } from '@/lib/use-ascii'
 const TIMELINE_TYPES: SectionType[] = ['experience', 'education']
 const DEFAULT_MAX_COLS = 80
 const DEFAULT_MAX_ROWS = 40
+const DEFAULT_DENSITY = 2
 
 export function SectionEditor() {
   const { cv, selectedSectionId, updateSection } = useCVStore()
@@ -26,6 +27,7 @@ export function SectionEditor() {
 
   const maxCols = section?.photoWidth ?? DEFAULT_MAX_COLS
   const maxRows = section?.photoHeight ?? DEFAULT_MAX_ROWS
+  const density = section?.photoDensity ?? DEFAULT_DENSITY
 
   const handlePhotoUpload = useCallback(
     async (file: File) => {
@@ -36,33 +38,43 @@ export function SectionEditor() {
       const reader = new FileReader()
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string
-        update({ photoUrl: dataUrl, photoAscii: undefined })
-        const ascii = await generate(dataUrl, { maxCols, maxRows })
-        if (ascii) update({ photoAscii: ascii })
+        update({ photoUrl: dataUrl, photoAscii: undefined, photoAsciiColors: undefined })
+        const result = await generate(dataUrl, { maxCols: maxCols * density, maxRows: maxRows * density })
+        if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
       }
       reader.readAsDataURL(file)
     },
-    [update, generate, maxCols, maxRows]
+    [update, generate, maxCols, maxRows, density]
   )
 
   const handleMaxColsChange = useCallback(
     async (newMaxCols: number) => {
-      update({ photoWidth: newMaxCols, photoAscii: undefined })
+      update({ photoWidth: newMaxCols, photoAscii: undefined, photoAsciiColors: undefined })
       if (!section?.photoUrl) return
-      const ascii = await generate(section.photoUrl, { maxCols: newMaxCols, maxRows })
-      if (ascii) update({ photoAscii: ascii })
+      const result = await generate(section.photoUrl, { maxCols: newMaxCols * density, maxRows: maxRows * density })
+      if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxRows, update, generate]
+    [section?.photoUrl, maxRows, density, update, generate]
   )
 
   const handleMaxRowsChange = useCallback(
     async (newMaxRows: number) => {
-      update({ photoHeight: newMaxRows, photoAscii: undefined })
+      update({ photoHeight: newMaxRows, photoAscii: undefined, photoAsciiColors: undefined })
       if (!section?.photoUrl) return
-      const ascii = await generate(section.photoUrl, { maxCols, maxRows: newMaxRows })
-      if (ascii) update({ photoAscii: ascii })
+      const result = await generate(section.photoUrl, { maxCols: maxCols * density, maxRows: newMaxRows * density })
+      if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxCols, update, generate]
+    [section?.photoUrl, maxCols, density, update, generate]
+  )
+
+  const handleDensityChange = useCallback(
+    async (newDensity: number) => {
+      update({ photoDensity: newDensity, photoAscii: undefined, photoAsciiColors: undefined })
+      if (!section?.photoUrl) return
+      const result = await generate(section.photoUrl, { maxCols: maxCols * newDensity, maxRows: maxRows * newDensity })
+      if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
+    },
+    [section?.photoUrl, maxCols, maxRows, update, generate]
   )
 
   if (!section) {
@@ -266,12 +278,33 @@ export function SectionEditor() {
                 className="w-full accent-blue-500"
               />
             </label>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-mono text-gray-500">density — {density}x</span>
+              <div className="flex gap-1">
+                {[1, 2, 3].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => handleDensityChange(d)}
+                    className={`flex-1 px-2 py-0.5 rounded text-xs font-mono border transition-colors ${
+                      density === d
+                        ? 'border-blue-500 text-blue-400 bg-blue-950'
+                        : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                    }`}
+                  >
+                    {d}x
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* ASCII preview */}
           {section.photoAscii && (
             <div className="max-h-48 overflow-auto">
-              <pre className="text-xs leading-none text-green-400 font-mono whitespace-pre">
+              <pre
+                className="font-mono whitespace-pre"
+                style={{ fontSize: `${Math.max(4, 10 / density)}px`, lineHeight: 1, color: '#4ade80' }}
+              >
                 {section.photoAscii}
               </pre>
             </div>
