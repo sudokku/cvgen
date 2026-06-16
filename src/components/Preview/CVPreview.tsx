@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { CV, CVLink, CVSection, CVStyle, DocMode, RenderMode } from '@/types/cv'
 import { TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
@@ -11,11 +12,71 @@ interface Props {
   containerStyle?: React.CSSProperties
 }
 
+const decorativeStyle: React.CSSProperties = {
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+}
+
+function DecorativeText({
+  text,
+  color,
+  weight = 700,
+}: {
+  text: string
+  color: string
+  weight?: number
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const width = text.length * 10
+    const height = 16
+    const scale = window.devicePixelRatio || 1
+    canvas.width = width * scale
+    canvas.height = height * scale
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.scale(scale, scale)
+    ctx.clearRect(0, 0, width, height)
+    ctx.fillStyle = color
+    ctx.font = `${weight} 16px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace`
+    ctx.textBaseline = 'top'
+    ctx.fillText(text, 0, 0)
+  }, [color, text, weight])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      role="presentation"
+      aria-hidden="true"
+      style={{
+        ...decorativeStyle,
+        display: 'inline-block',
+        width: `${text.length * 0.62}em`,
+        height: '1em',
+        marginRight: '0.25em',
+        verticalAlign: '-0.12em',
+      }}
+    />
+  )
+}
+
 function Rule({ style, char = '─' }: { style: CVStyle; char?: string }) {
   return (
-    <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', color: style.borderColor, letterSpacing: '-1px' }}>
-      {char.repeat(300)}
-    </div>
+    <div
+      aria-hidden="true"
+      style={{
+        ...decorativeStyle,
+        borderTop: `${char === '═' ? 2 : 1}px solid ${style.borderColor}`,
+        height: 0,
+        width: '100%',
+      }}
+    />
   )
 }
 
@@ -43,7 +104,9 @@ function PhotoPlaceholder({ cols, rows, style }: { cols: number; rows: number; s
         margin: 0,
         whiteSpace: 'pre',
         flexShrink: 0,
+        ...decorativeStyle,
       }}
+      aria-hidden="true"
     >
       {lines.join('\n')}
     </pre>
@@ -80,7 +143,7 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
   return (
     <div style={{ marginBottom: '28px' }}>
       {/* Section heading */}
-      <div style={{ marginBottom: '8px' }}>
+      <div style={{ marginBottom: '8px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
         <div
           style={{
             fontSize: `${headingSize}px`,
@@ -89,7 +152,8 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
             letterSpacing: '0.03em',
           }}
         >
-          ## {section.title}
+          <DecorativeText text="##" color={effectiveStyle.headingColor} />
+          {section.title}
         </div>
         {section.subtitle && (
           <div style={{ color: effectiveStyle.subtitleColor, marginTop: '2px' }}>
@@ -217,21 +281,24 @@ function parseInline(line: string, style: CVStyle, h3Color?: string): React.Reac
   if (line.startsWith('### ')) {
     return [
       <span key="h3" style={{ color: h3Color ?? style.fgColor, fontWeight: 600 }}>
-        {line}
+        <DecorativeText text="###" color={h3Color ?? style.fgColor} weight={600} />
+        {line.slice(4)}
       </span>,
     ]
   }
   if (line.startsWith('## ')) {
     return [
       <span key="h2" style={{ color: style.headingColor, fontWeight: 700 }}>
-        {line}
+        <DecorativeText text="##" color={style.headingColor} />
+        {line.slice(3)}
       </span>,
     ]
   }
   if (line.startsWith('# ')) {
     return [
       <span key="h1" style={{ color: style.fgColor, fontWeight: 700 }}>
-        {line}
+        <DecorativeText text="#" color={style.fgColor} />
+        {line.slice(2)}
       </span>,
     ]
   }
@@ -376,7 +443,8 @@ export function CVPreview({ cv, containerStyle }: Props) {
                 letterSpacing: '0.02em',
               }}
             >
-              # {meta.name}
+              <DecorativeText text="#" color={style.fgColor} />
+              {meta.name}
             </div>
 
             {meta.title && (

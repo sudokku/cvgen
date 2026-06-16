@@ -10,6 +10,54 @@ interface Props {
   style: CVStyle
 }
 
+const decorativeStyle: React.CSSProperties = {
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+}
+
+function TimelinePrefix({ prefix, color }: { prefix: string; color: string }) {
+  const isBranch = prefix.startsWith('├') || prefix.startsWith('└')
+  const isLastBranch = prefix.startsWith('└')
+  const isPipe = prefix.startsWith('│')
+
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        ...decorativeStyle,
+        display: 'inline-block',
+        position: 'relative',
+        width: '3ch',
+        height: '1.6em',
+        verticalAlign: 'top',
+      }}
+    >
+      {(isPipe || isBranch) && (
+        <span
+          style={{
+            position: 'absolute',
+            left: '0.38ch',
+            top: isLastBranch ? 0 : 0,
+            bottom: isLastBranch ? '50%' : 0,
+            borderLeft: `1px solid ${color}`,
+          }}
+        />
+      )}
+      {isBranch && (
+        <span
+          style={{
+            position: 'absolute',
+            left: '0.38ch',
+            top: '50%',
+            width: '1.15ch',
+            borderTop: `1px solid ${color}`,
+          }}
+        />
+      )}
+    </span>
+  )
+}
+
 // Wrap a string to lines of at most `width` chars, splitting on spaces.
 // Hard-breaks words that are longer than `width`.
 function wordWrap(text: string, width: number): string[] {
@@ -53,7 +101,7 @@ function PreLine({
 }) {
   return (
     <div style={{ whiteSpace: 'pre' }}>
-      <span style={{ color: prefixColor }}>{prefix}</span>
+      <TimelinePrefix prefix={prefix} color={prefixColor} />
       {children}
     </div>
   )
@@ -72,7 +120,18 @@ export function TimelineSection({ content, layout, style }: Props) {
             return (
               <span key={i} style={{ color: style.mutedColor }}>
                 <span style={{ color: style.periodColor }}>{label}</span>
-                {connector}
+                {connector && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      ...decorativeStyle,
+                      display: 'inline-block',
+                      width: '8ch',
+                      borderTop: `1px solid ${style.mutedColor}`,
+                      verticalAlign: 'middle',
+                    }}
+                  />
+                )}
               </span>
             )
           })}
@@ -120,7 +179,7 @@ export function TimelineSection({ content, layout, style }: Props) {
         const descLines = wordWrap(entry.description, WRAP_WIDTH)
 
         return (
-          <div key={i}>
+          <div key={i} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
             {/* ├─ period */}
             <PreLine prefix={branch} prefixColor={style.mutedColor}>
               <span style={{ color: style.periodColor }}>{entry.period}</span>
