@@ -6,6 +6,7 @@ import { TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
 import { AsciiArt } from './AsciiArt'
 import { JsonSectionBlock, JKey, JStr, JPunct } from './JsonSectionBlock'
+import { parseKeyValueContent, parseSkillsContent } from '@/lib/section-formatting'
 
 interface Props {
   cv: CV
@@ -209,10 +210,17 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
         />
       )}
 
-      {/* Plain content — skills and personal (both use key:value category rendering) */}
-      {!isTimeline && section.type !== 'photo' && (section.type === 'skills' || section.type === 'personal') && (
+      {/* Plain content — skills */}
+      {!isTimeline && section.type !== 'photo' && section.type === 'skills' && (
         <pre style={preStyle}>
           {renderSkillsContent(section.content, effectiveStyle)}
+        </pre>
+      )}
+
+      {/* Plain content — personal key/value pairs */}
+      {!isTimeline && section.type !== 'photo' && section.type === 'personal' && (
+        <pre style={preStyle}>
+          {renderKeyValueContent(section.content, effectiveStyle)}
         </pre>
       )}
 
@@ -231,27 +239,37 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
  * with categoryColor.
  */
 function renderSkillsContent(content: string, style: CVStyle): React.ReactNode[] {
-  const lines = content.split('\n')
-  return lines.map((line, li) => {
-    const colonIdx = line.indexOf(':')
+  const rows = parseSkillsContent(content)
+  return rows.map((row, li) => {
     const nodes: React.ReactNode[] = []
-    if (colonIdx > 0 && !line.startsWith('#')) {
-      const category = line.slice(0, colonIdx)
-      const rest = line.slice(colonIdx)
+    if (row.category) {
+      const rest = row.items.length > 0 ? `: ${row.items.join(' · ')}` : ':'
       nodes.push(
-        <span key="cat" style={{ color: style.categoryColor, fontWeight: 600 }}>{category}</span>,
+        <span key="cat" style={{ color: style.categoryColor, fontWeight: 600 }}>{row.category}</span>,
         <span key="rest" style={{ color: style.fgColor }}>{rest}</span>
       )
     } else {
-      nodes.push(...parseInline(line, style))
+      nodes.push(...parseInline(row.items.join(' · '), style))
     }
     return (
       <span key={li}>
         {nodes}
-        {li < lines.length - 1 ? '\n' : ''}
+        {li < rows.length - 1 ? '\n' : ''}
       </span>
     )
   })
+}
+
+function renderKeyValueContent(content: string, style: CVStyle): React.ReactNode[] {
+  const rows = parseKeyValueContent(content)
+  return rows.map((row, li) => (
+    <span key={li}>
+      {row.key && <span style={{ color: style.categoryColor, fontWeight: 600 }}>{row.key}</span>}
+      {row.key && <span style={{ color: style.fgColor }}>:</span>}
+      {row.value && <span style={{ color: style.fgColor }}> {row.value}</span>}
+      {li < rows.length - 1 ? '\n' : ''}
+    </span>
+  ))
 }
 
 /**

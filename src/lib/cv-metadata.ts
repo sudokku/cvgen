@@ -1,5 +1,5 @@
 import { CV } from '@/types/cv'
-import { parseTimelineEntries } from './timeline-parser'
+import { parseEducationContent, parseExperienceContent, parseSkillsContent } from './section-formatting'
 
 export function extractKeywords(cv: CV): string[] {
   const { meta, sections } = cv
@@ -11,15 +11,23 @@ export function extractKeywords(cv: CV): string[] {
     raw.push(section.title)
 
     if (section.type === 'skills') {
-      const items = section.content.split(/[\n,|•]+/).map((t) => t.replace(/^[^:]+:/, '').trim())
+      const items = parseSkillsContent(section.content).flatMap((group) => group.items)
       raw.push(...items)
     }
 
-    if (section.type === 'experience' || section.type === 'education') {
-      const entries = parseTimelineEntries(section.content)
+    if (section.type === 'experience') {
+      const entries = parseExperienceContent(section.content)
       for (const e of entries) {
         if (e.role) raw.push(e.role)
         if (e.company) raw.push(e.company)
+      }
+    }
+
+    if (section.type === 'education') {
+      const entries = parseEducationContent(section.content)
+      for (const e of entries) {
+        if (e.degree) raw.push(e.degree)
+        if (e.institution) raw.push(e.institution)
       }
     }
   }

@@ -1,14 +1,40 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useRef, useState } from 'react'
 import { useCVStore } from '@/store/cv-store'
 import { CVSection, CVStyle, RenderMode, SectionType, TimelineLayout } from '@/types/cv'
 import { useAsciiGenerator } from '@/lib/use-ascii'
+import {
+  type EducationEntryModel,
+  type ExperienceEntryModel,
+  type KeyValueModel,
+  type ProjectEntryModel,
+  type SkillGroupModel,
+  canParseStructuredTimelineContent,
+  parseEducationContent,
+  parseExperienceContent,
+  parseKeyValueContent,
+  parseProjectContent,
+  parseSkillsContent,
+  serializeEducationContent,
+  serializeExperienceContent,
+  serializeKeyValueContent,
+  serializeProjectContent,
+  serializeSkillsContent,
+} from '@/lib/section-formatting'
 
 const TIMELINE_TYPES: SectionType[] = ['experience', 'education']
 const DEFAULT_MAX_COLS = 80
 const DEFAULT_MAX_ROWS = 40
 const DEFAULT_DENSITY = 2
+const fieldClass = 'bg-gray-950 border border-gray-800 rounded px-2 py-1 text-xs text-gray-200 font-mono focus:outline-none focus:border-gray-600'
+const labelClass = 'text-xs font-mono text-gray-500'
+
+const blankExperience: ExperienceEntryModel = { role: '', company: '', period: '', details: [] }
+const blankEducation: EducationEntryModel = { degree: '', institution: '', period: '', details: [] }
+const blankProject: ProjectEntryModel = { name: '', description: '', stack: [], repo: '' }
+const blankSkill: SkillGroupModel = { category: '', items: [] }
+const blankKeyValue: KeyValueModel = { key: '', value: '' }
 
 export function SectionEditor() {
   const { cv, selectedSectionId, updateSection } = useCVStore()
@@ -28,6 +54,7 @@ export function SectionEditor() {
   const maxCols = section?.photoWidth ?? DEFAULT_MAX_COLS
   const maxRows = section?.photoHeight ?? DEFAULT_MAX_ROWS
   const density = section?.photoDensity ?? DEFAULT_DENSITY
+  const photoUrl = section?.photoUrl
 
   const handlePhotoUpload = useCallback(
     async (file: File) => {
@@ -50,31 +77,31 @@ export function SectionEditor() {
   const handleMaxColsChange = useCallback(
     async (newMaxCols: number) => {
       update({ photoWidth: newMaxCols, photoAscii: undefined, photoAsciiColors: undefined })
-      if (!section?.photoUrl) return
-      const result = await generate(section.photoUrl, { maxCols: newMaxCols * density, maxRows: maxRows * density })
+      if (!photoUrl) return
+      const result = await generate(photoUrl, { maxCols: newMaxCols * density, maxRows: maxRows * density })
       if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxRows, density, update, generate]
+    [photoUrl, maxRows, density, update, generate]
   )
 
   const handleMaxRowsChange = useCallback(
     async (newMaxRows: number) => {
       update({ photoHeight: newMaxRows, photoAscii: undefined, photoAsciiColors: undefined })
-      if (!section?.photoUrl) return
-      const result = await generate(section.photoUrl, { maxCols: maxCols * density, maxRows: newMaxRows * density })
+      if (!photoUrl) return
+      const result = await generate(photoUrl, { maxCols: maxCols * density, maxRows: newMaxRows * density })
       if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxCols, density, update, generate]
+    [photoUrl, maxCols, density, update, generate]
   )
 
   const handleDensityChange = useCallback(
     async (newDensity: number) => {
       update({ photoDensity: newDensity, photoAscii: undefined, photoAsciiColors: undefined })
-      if (!section?.photoUrl) return
-      const result = await generate(section.photoUrl, { maxCols: maxCols * newDensity, maxRows: maxRows * newDensity })
+      if (!photoUrl) return
+      const result = await generate(photoUrl, { maxCols: maxCols * newDensity, maxRows: maxRows * newDensity })
       if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxCols, maxRows, update, generate]
+    [photoUrl, maxCols, maxRows, update, generate]
   )
 
   if (!section) {
@@ -126,6 +153,125 @@ export function SectionEditor() {
         </div>
       </label>
     )
+  }
+
+  const renderEntryActions = (onAdd: () => void) => (
+    <button
+      onClick={onAdd}
+      className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors"
+    >
+      + add entry
+    </button>
+  )
+
+  const renderExperienceControls = () => {
+    const entries = parseExperienceContent(section.content)
+    const editable = entries.length > 0 ? entries : [blankExperience]
+    const commit = (next: ExperienceEntryModel[]) => update({ content: serializeExperienceContent(next) })
+    return (
+      <StructuredPanel title="Experience fields" addButton={renderEntryActions(() => commit([...editable, { role: 'Role', company: 'Company', period: 'Year-Year', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <div className="grid grid-cols-1 gap-2">
+              <Field label="Job title" value={entry.role} onChange={(role) => commit(editAt(editable, index, { role }))} />
+              <Field label="Company" value={entry.company} onChange={(company) => commit(editAt(editable, index, { company }))} />
+              <Field label="Period" value={entry.period} onChange={(period) => commit(editAt(editable, index, { period }))} />
+              <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            </div>
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderEducationControls = () => {
+    const entries = parseEducationContent(section.content)
+    const editable = entries.length > 0 ? entries : [blankEducation]
+    const commit = (next: EducationEntryModel[]) => update({ content: serializeEducationContent(next) })
+    return (
+      <StructuredPanel title="Education fields" addButton={renderEntryActions(() => commit([...editable, { degree: 'Degree', institution: 'Institution', period: 'Year-Year', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Degree" value={entry.degree} onChange={(degree) => commit(editAt(editable, index, { degree }))} />
+            <Field label="Institution" value={entry.institution} onChange={(institution) => commit(editAt(editable, index, { institution }))} />
+            <Field label="Period" value={entry.period} onChange={(period) => commit(editAt(editable, index, { period }))} />
+            <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderProjectControls = () => {
+    const entries = parseProjectContent(section.content)
+    const editable = entries.length > 0 ? entries : [blankProject]
+    const commit = (next: ProjectEntryModel[]) => update({ content: serializeProjectContent(next) })
+    return (
+      <StructuredPanel title="Project fields" addButton={renderEntryActions(() => commit([...editable, { name: 'Project Name', description: '', stack: [], repo: '' }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Name" value={entry.name} onChange={(name) => commit(editAt(editable, index, { name }))} />
+            <TextAreaField label="Description" value={entry.description} onChange={(description) => commit(editAt(editable, index, { description }))} />
+            <Field label="Stack" value={entry.stack.join(', ')} onChange={(stack) => commit(editAt(editable, index, { stack: stack.split(',').map((item) => item.trim()) }))} />
+            <Field label="Repo / link" value={entry.repo} onChange={(repo) => commit(editAt(editable, index, { repo }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderSkillsControls = () => {
+    const groups = parseSkillsContent(section.content)
+    const editable = groups.length > 0 ? groups : [blankSkill]
+    const commit = (next: SkillGroupModel[]) => update({ content: serializeSkillsContent(next) })
+    return (
+      <StructuredPanel title="Skill groups" addButton={renderEntryActions(() => commit([...editable, { category: 'Category', items: [] }]))}>
+        {editable.map((group, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Category" value={group.category} onChange={(category) => commit(editAt(editable, index, { category }))} />
+            <Field label="Items" value={group.items.join(' · ')} onChange={(items) => commit(editAt(editable, index, { items: items.split('·').map((item) => item.trim()) }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderPersonalControls = () => {
+    const rows = parseKeyValueContent(section.content)
+    const editable = rows.length > 0 ? rows : [blankKeyValue]
+    const commit = (next: KeyValueModel[]) => update({ content: serializeKeyValueContent(next) })
+    return (
+      <StructuredPanel title="Personal fields" addButton={renderEntryActions(() => commit([...editable, { key: 'Field', value: '' }]))}>
+        {editable.map((row, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Label" value={row.key} onChange={(key) => commit(editAt(editable, index, { key }))} />
+            <Field label="Value" value={row.value} onChange={(value) => commit(editAt(editable, index, { value }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderStructuredControls = () => {
+    switch (section.type) {
+      case 'experience':
+        return canParseStructuredTimelineContent(section.content) ? renderExperienceControls() : null
+      case 'education':
+        return canParseStructuredTimelineContent(section.content) ? renderEducationControls() : null
+      case 'projects':
+        return canParseStructuredTimelineContent(section.content) ? renderProjectControls() : null
+      case 'skills':
+        return renderSkillsControls()
+      case 'personal':
+        return renderPersonalControls()
+      default:
+        return null
+    }
   }
 
   return (
@@ -314,19 +460,23 @@ export function SectionEditor() {
           )}
         </div>
       ) : (
-        <div>
+        <div className="space-y-3">
+          {renderStructuredControls()}
           {canUseTimeline && section.layout !== 'list' && (
             <p className="text-xs text-gray-600 font-mono mb-2">
               Format: <code className="text-gray-500">### Role @ Company | Period</code>
             </p>
           )}
-          <textarea
-            value={section.content}
-            onChange={(e) => update({ content: e.target.value })}
-            className="w-full min-h-[180px] bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-200 font-mono resize-y focus:outline-none focus:border-gray-600 placeholder-gray-700"
-            placeholder="Write markdown content here..."
-            spellCheck={false}
-          />
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Source</span>
+            <textarea
+              value={section.content}
+              onChange={(e) => update({ content: e.target.value })}
+              className="w-full min-h-[180px] bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-200 font-mono resize-y focus:outline-none focus:border-gray-600 placeholder-gray-700"
+              placeholder="Write markdown content here..."
+              spellCheck={false}
+            />
+          </label>
         </div>
       )}
 
@@ -366,4 +516,54 @@ export function SectionEditor() {
       </div>
     </div>
   )
+}
+
+function StructuredPanel({
+  title,
+  addButton,
+  children,
+}: {
+  title: string
+  addButton: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <div className="rounded border border-gray-800 bg-gray-950/40 p-2 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">{title}</span>
+        {addButton}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className={labelClass}>{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} />
+    </label>
+  )
+}
+
+function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className={labelClass}>{label}</span>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} className={`${fieldClass} min-h-20 resize-y`} />
+    </label>
+  )
+}
+
+function RemoveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="text-xs font-mono text-red-500 hover:text-red-400 transition-colors">
+      remove
+    </button>
+  )
+}
+
+function editAt<T>(items: T[], index: number, patch: Partial<T>): T[] {
+  return items.map((item, i) => (i === index ? { ...item, ...patch } : item))
 }

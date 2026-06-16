@@ -81,8 +81,8 @@ describe('extractKeywords', () => {
       ],
     })
     const result = extractKeywords(cv)
-    // The parser treats everything before the last | as the role when no @ is present
-    expect(result).toContain('BSc Computer Science | State University')
+    expect(result).toContain('BSc Computer Science')
+    expect(result).toContain('State University')
   })
 
   it('deduplicates keywords', () => {

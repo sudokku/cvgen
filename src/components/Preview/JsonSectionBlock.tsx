@@ -1,11 +1,16 @@
 import React from 'react'
 import { CVSection, CVStyle } from '@/types/cv'
-import { parseTimelineEntries } from '@/lib/timeline-parser'
+import {
+  parseEducationContent,
+  parseExperienceContent,
+  parseProjectContent,
+  parseSkillsContent,
+} from '@/lib/section-formatting'
 
 // ── Token span helpers ──────────────────────────────────────────────────────
 
 export function JKey({ text, style, color }: { text: string; style: CVStyle; color?: string }) {
-  return <span style={{ color: color ?? style.jsonKeyColor }}>"{text}"</span>
+  return <span style={{ color: color ?? style.jsonKeyColor }}>{'"'}{text}{'"'}</span>
 }
 
 export function JStr({ children, style }: { children: React.ReactNode; style: CVStyle }) {
@@ -59,39 +64,6 @@ function JStringValue({ text, style, trailing = '', color }: { text: string; sty
   )
 }
 
-// ── Skills content parser ───────────────────────────────────────────────────
-// "Languages: TypeScript · Go · Python" → { category: "Languages", items: ["TypeScript","Go","Python"] }
-// Lines without ":" → { items: ["item1","item2"] }
-
-interface SkillLine { category?: string; items: string[] }
-
-function parseSkillLines(content: string): SkillLine[] {
-  return content.split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const colonIdx = line.indexOf(':')
-      if (colonIdx > 0) {
-        const category = line.slice(0, colonIdx).trim()
-        const items = line.slice(colonIdx + 1).split('·').map((s) => s.trim()).filter(Boolean)
-        return { category, items }
-      }
-      const items = line.split('·').map((s) => s.trim()).filter(Boolean)
-      return { items }
-    })
-}
-
-// ── Project description parser ──────────────────────────────────────────────
-// Splits "Stack: item1, item2" out of description text.
-
-function parseProjectDescription(text: string): { description: string; stack: string[] } {
-  const stackMatch = text.match(/\.?\s*Stack:\s*([^\n]+)/i)
-  if (!stackMatch) return { description: text.trim(), stack: [] }
-  const stack = stackMatch[1].replace(/\.$/, '').split(',').map((s) => s.trim()).filter(Boolean)
-  const description = text.replace(/\.?\s*Stack:\s*[^\n]+/i, '').trim()
-  return { description, stack }
-}
-
 // ── Indentation helper ──────────────────────────────────────────────────────
 
 const I1 = '  '   // 2 spaces
@@ -122,47 +94,47 @@ function WrappableLine({ indent = '', children }: { indent?: string; children?: 
 // ── Section renderers ───────────────────────────────────────────────────────
 
 function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
-  const entries = parseTimelineEntries(section.content)
   const isEdu = section.type === 'education'
+  const entries = isEdu
+    ? parseEducationContent(section.content).map((entry) => ({
+        primaryKey: 'degree',
+        primaryVal: entry.degree,
+        secondaryKey: 'institution',
+        secondaryVal: entry.institution,
+        period: entry.period,
+        highlights: entry.details,
+      }))
+    : parseExperienceContent(section.content).map((entry) => ({
+        primaryKey: 'role',
+        primaryVal: entry.role,
+        secondaryKey: 'company',
+        secondaryVal: entry.company,
+        period: entry.period,
+        highlights: entry.details,
+      }))
   const key = isEdu ? 'education' : 'experience'
 
   return (
     <div>
       <Line><JKey text={key} style={style} /><JPunct text=": [" style={style} /></Line>
       {entries.map((entry, ei) => {
-        const highlights = entry.description
-          .split('\n').map((l) => l.trim()).filter(Boolean)
         const isLastEntry = ei === entries.length - 1
-
-        // For education: split "Degree | Institution" from role field
-        let primaryKey = 'role'
-        let primaryVal = entry.role
-        let secondaryKey = 'company'
-        let secondaryVal = entry.company
-
-        if (isEdu) {
-          const parts = entry.role.split(' | ')
-          primaryKey = 'degree'
-          primaryVal = parts[0]?.trim() ?? entry.role
-          secondaryKey = 'institution'
-          secondaryVal = parts[1]?.trim() || entry.company
-        }
 
         return (
           <div key={ei}>
             <Line>{I1}<JPunct text="{" style={style} /></Line>
-            <WrappableLine indent={I2}><JKey text={primaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={primaryVal} style={style} trailing="," color={style.roleColor} /></WrappableLine>
-            {secondaryVal && (
-              <WrappableLine indent={I2}><JKey text={secondaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={secondaryVal} style={style} trailing="," color={style.companyColor} /></WrappableLine>
+            <WrappableLine indent={I2}><JKey text={entry.primaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.primaryVal} style={style} trailing="," color={style.roleColor} /></WrappableLine>
+            {entry.secondaryVal && (
+              <WrappableLine indent={I2}><JKey text={entry.secondaryKey} style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.secondaryVal} style={style} trailing="," color={style.companyColor} /></WrappableLine>
             )}
             {entry.period && (
-              <WrappableLine indent={I2}><JKey text="period" style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.period} style={style} trailing={highlights.length ? ',' : ''} color={style.periodColor} /></WrappableLine>
+              <WrappableLine indent={I2}><JKey text="period" style={style} /><JPunct text=": " style={style} /><JStringValue text={entry.period} style={style} trailing={entry.highlights.length ? ',' : ''} color={style.periodColor} /></WrappableLine>
             )}
-            {highlights.length > 0 && (
+            {entry.highlights.length > 0 && (
               <>
                 <Line>{I2}<JKey text="highlights" style={style} /><JPunct text=": [" style={style} /></Line>
-                {highlights.map((h, hi) => (
-                  <WrappableLine key={hi} indent={I3}><JStringValue text={h} style={style} trailing={hi < highlights.length - 1 ? ',' : ''} /></WrappableLine>
+                {entry.highlights.map((h, hi) => (
+                  <WrappableLine key={hi} indent={I3}><JStringValue text={h} style={style} trailing={hi < entry.highlights.length - 1 ? ',' : ''} /></WrappableLine>
                 ))}
                 <Line>{I2}<JPunct text="]" style={style} /></Line>
               </>
@@ -177,7 +149,7 @@ function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
 }
 
 function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
-  const lines = parseSkillLines(section.content)
+  const lines = parseSkillsContent(section.content)
   const allCategorised = lines.length > 0 && lines.every((l) => l.category)
 
   if (allCategorised) {
@@ -189,7 +161,7 @@ function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
           const isLast = li === lines.length - 1
           return (
             <div key={li}>
-              <Line>{I1}<JKey text={line.category!} style={style} color={style.categoryColor} /><JPunct text=": [" style={style} /></Line>
+              <Line>{I1}<JKey text={line.category} style={style} color={style.categoryColor} /><JPunct text=": [" style={style} /></Line>
               {line.items.map((item, ii) => (
                 <WrappableLine key={ii} indent={I2}><JStringValue text={item} style={style} trailing={ii < line.items.length - 1 ? ',' : ''} /></WrappableLine>
               ))}
@@ -216,7 +188,7 @@ function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
 }
 
 function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
-  const entries = parseTimelineEntries(section.content)
+  const entries = parseProjectContent(section.content)
   if (entries.length === 0) {
     return renderPlain(section, style)
   }
@@ -226,32 +198,38 @@ function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
       <Line><JKey text="projects" style={style} /><JPunct text=": [" style={style} /></Line>
       {entries.map((entry, ei) => {
         const isLast = ei === entries.length - 1
-        const { description, stack } = parseProjectDescription(entry.description)
-        const hasDescription = description.length > 0
-        const hasStack = stack.length > 0
+        const hasDescription = entry.description.length > 0
+        const hasStack = entry.stack.length > 0
+        const hasRepo = entry.repo.length > 0
 
         return (
           <div key={ei}>
             <Line>{I1}<JPunct text="{" style={style} /></Line>
             <WrappableLine indent={I2}>
               <JKey text="name" style={style} /><JPunct text=": " style={style} />
-              <JStringValue text={entry.role} style={style} trailing={hasDescription || hasStack ? ',' : ''} color={style.projectTitleColor} />
+              <JStringValue text={entry.name} style={style} trailing={hasDescription || hasStack || hasRepo ? ',' : ''} color={style.projectTitleColor} />
             </WrappableLine>
             {hasDescription && (
               <WrappableLine indent={I2}>
                 <JKey text="description" style={style} /><JPunct text=": " style={style} />
-                <JStringValue text={description} style={style} trailing={hasStack ? ',' : ''} />
+                <JStringValue text={entry.description} style={style} trailing={hasStack || hasRepo ? ',' : ''} />
               </WrappableLine>
             )}
             {hasStack && (
               <WrappableLine indent={I2}>
                 <JKey text="stack" style={style} /><JPunct text=": [" style={style} />
-                {stack.map((item, si) => (
+                {entry.stack.map((item, si) => (
                   <span key={si}>
-                    <JStringValue text={item} style={style} trailing={si < stack.length - 1 ? ', ' : ''} />
+                    <JStringValue text={item} style={style} trailing={si < entry.stack.length - 1 ? ', ' : ''} />
                   </span>
                 ))}
-                <JPunct text="]" style={style} />
+                <JPunct text={hasRepo ? '],' : ']'} style={style} />
+              </WrappableLine>
+            )}
+            {hasRepo && (
+              <WrappableLine indent={I2}>
+                <JKey text="repo" style={style} /><JPunct text=": " style={style} />
+                <JStringValue text={entry.repo} style={style} />
               </WrappableLine>
             )}
             <Line>{I1}<JPunct text={isLast ? '}' : '},'} style={style} /></Line>

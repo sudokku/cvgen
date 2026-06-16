@@ -1,5 +1,5 @@
 import { CV } from '@/types/cv'
-import { parseTimelineEntries } from './timeline-parser'
+import { parseEducationContent, parseExperienceContent, parseSkillsContent } from './section-formatting'
 
 export function cvToJsonLd(cv: CV): object {
   const { meta, sections } = cv
@@ -20,7 +20,7 @@ export function cvToJsonLd(cv: CV): object {
   const skillsSections = sections.filter((s) => s.type === 'skills')
 
   const hasOccupation = experienceSections.flatMap((s) =>
-    parseTimelineEntries(s.content).map((entry) => ({
+    parseExperienceContent(s.content).map((entry) => ({
       '@type': 'Role',
       roleName: entry.role,
       ...(entry.company ? { 'schema:worksFor': { '@type': 'Organization', name: entry.company } } : {}),
@@ -29,17 +29,16 @@ export function cvToJsonLd(cv: CV): object {
   )
 
   const alumniOf = educationSections.flatMap((s) =>
-    parseTimelineEntries(s.content).map((entry) => ({
+    parseEducationContent(s.content).map((entry) => ({
       '@type': 'EducationalOrganization',
-      name: entry.company || entry.role,
+      name: entry.institution || entry.degree,
     }))
   )
 
   const knowsAbout = skillsSections.flatMap((s) =>
-    s.content
-      .split(/[\n,|•]+/)
-      .map((t) => t.replace(/^[^:]+:/, '').trim())
-      .filter((t) => t.length > 0 && t.length <= 50)
+    parseSkillsContent(s.content)
+      .flatMap((group) => group.items)
+      .filter((item) => item.length > 0 && item.length <= 50)
   ).slice(0, 40)
 
   return {
