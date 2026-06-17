@@ -263,10 +263,13 @@ function renderSkillsContent(rows: SkillGroup[], style: CVStyle): React.ReactNod
   return rows.map((row, li) => {
     const nodes: React.ReactNode[] = []
     if (row.category) {
-      const rest = row.items.length > 0 ? `: ${row.items.join(' · ')}` : ':'
       nodes.push(
         <span key="cat" style={{ color: style.categoryColor, fontWeight: 600 }}>{row.category}</span>,
-        <span key="rest" style={{ color: style.fgColor }}>{rest}</span>
+        <span key="colon" style={{ color: style.fgColor }}>:</span>,
+        ...row.items.flatMap((item, itemIndex) => [
+          itemIndex > 0 ? <span key={`sep-${itemIndex}`} style={{ color: style.fgColor }}> · </span> : <span key="space" style={{ color: style.fgColor }}> </span>,
+          ...parseInline(item, style),
+        ])
       )
     } else {
       nodes.push(...parseInline(row.items.join(' · '), style))
@@ -285,7 +288,8 @@ function renderKeyValueContent(rows: PersonalRow[], style: CVStyle): React.React
     <span key={li}>
       {row.key && <span style={{ color: style.categoryColor, fontWeight: 600 }}>{row.key}</span>}
       {row.key && <span style={{ color: style.fgColor }}>:</span>}
-      {row.value && <span style={{ color: style.fgColor }}> {row.value}</span>}
+      {row.value && <span style={{ color: style.fgColor }}> </span>}
+      {row.value && parseInline(row.value, style)}
       {li < rows.length - 1 ? '\n' : ''}
     </span>
   ))

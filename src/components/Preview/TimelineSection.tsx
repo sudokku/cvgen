@@ -113,6 +113,44 @@ function PreLine({
   )
 }
 
+function InlineText({ text, style, color }: { text: string; style: CVStyle; color?: string }) {
+  const baseColor = color ?? style.fgColor
+  const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`)/g
+  const tokens: React.ReactNode[] = []
+  let last = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > last) {
+      tokens.push(<span key={`t-${last}`} style={{ color: baseColor }}>{text.slice(last, match.index)}</span>)
+    }
+    if (match[0].startsWith('**')) {
+      tokens.push(<span key={`b-${match.index}`} style={{ color: baseColor, fontWeight: 700 }}>{match[2]}</span>)
+    } else {
+      tokens.push(
+        <span
+          key={`c-${match.index}`}
+          style={{
+            color: style.accentColor,
+            backgroundColor: style.codeBgColor,
+            padding: '0 3px',
+            borderRadius: '3px',
+          }}
+        >
+          {match[3]}
+        </span>
+      )
+    }
+    last = match.index + match[0].length
+  }
+
+  if (last < text.length) {
+    tokens.push(<span key="t-end" style={{ color: baseColor }}>{text.slice(last)}</span>)
+  }
+
+  return <>{tokens}</>
+}
+
 export function TimelineSection({ entries, layout, style }: Props) {
   if (layout === 'horizontal') {
     return (
@@ -147,7 +185,7 @@ export function TimelineSection({ entries, layout, style }: Props) {
               {entry.company && <div style={{ color: style.companyColor }}>@ {entry.company}</div>}
               {entry.description && (
                 <div style={{ color: style.mutedColor, marginTop: '2px', whiteSpace: 'pre-wrap' }}>
-                  {entry.description}
+                  <InlineText text={entry.description} style={style} color={style.mutedColor} />
                 </div>
               )}
             </div>
@@ -205,7 +243,7 @@ export function TimelineSection({ entries, layout, style }: Props) {
             {/* │  description line × N */}
             {descLines.map((l, li) => (
               <PreLine key={li} prefix={pipe} prefixColor={style.mutedColor}>
-                {l && <span style={{ color: style.mutedColor }}>{l}</span>}
+                {l && <InlineText text={l} style={style} color={style.mutedColor} />}
               </PreLine>
             ))}
 
