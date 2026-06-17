@@ -1,34 +1,46 @@
 import { parseTimelineEntries } from './timeline-parser'
+import {
+  CV,
+  CVSection,
+  CVSectionBase,
+  CVSectionInput,
+  CVStyle,
+  DEFAULT_STYLE,
+  EducationEntry,
+  ExperienceEntry,
+  PersonalRow,
+  ProjectEntry,
+  SectionType,
+  SkillGroup,
+  TimelineLayout,
+} from '@/types/cv'
 
-export interface ExperienceEntryModel {
-  role: string
-  company: string
-  period: string
-  details: string[]
-}
+export type ExperienceEntryModel = ExperienceEntry
+export type EducationEntryModel = EducationEntry
+export type ProjectEntryModel = ProjectEntry
+export type SkillGroupModel = SkillGroup
+export type KeyValueModel = PersonalRow
 
-export interface EducationEntryModel {
-  degree: string
-  institution: string
-  period: string
-  details: string[]
-}
-
-export interface ProjectEntryModel {
-  name: string
-  description: string
-  stack: string[]
-  repo: string
-}
-
-export interface SkillGroupModel {
-  category: string
-  items: string[]
-}
-
-export interface KeyValueModel {
-  key: string
-  value: string
+type LegacySection = Partial<CVSectionBase> & {
+  id?: string
+  type: SectionType
+  title?: string
+  subtitle?: string
+  content?: string
+  body?: string
+  entries?: unknown
+  groups?: unknown
+  rows?: unknown
+  layout?: TimelineLayout
+  photoUrl?: string
+  photoAscii?: string
+  photoAsciiColors?: string[][]
+  photoWidth?: number
+  photoHeight?: number
+  photoDensity?: number
+  photoMode?: 'ascii' | 'image'
+  renderMode?: CVSection['renderMode']
+  sectionColors?: Partial<CVStyle>
 }
 
 function nonEmptyLines(text: string): string[] {
@@ -194,4 +206,139 @@ export function serializeKeyValueContent(rows: KeyValueModel[]): string {
     .map((row) => row.key.trim() ? `${row.key.trim()}: ${row.value.trim()}` : row.value.trim())
     .filter(Boolean)
     .join('\n')
+}
+
+function baseSection(input: LegacySection, fallbackTitle: string): CVSectionBase {
+  return {
+    id: input.id ?? '',
+    type: input.type,
+    title: input.title ?? fallbackTitle,
+    subtitle: input.subtitle ?? '',
+    layout: input.layout ?? 'list',
+    renderMode: input.renderMode,
+    sectionColors: input.sectionColors,
+  }
+}
+
+function isExperienceEntries(value: unknown): value is ExperienceEntry[] {
+  return Array.isArray(value)
+}
+
+function isEducationEntries(value: unknown): value is EducationEntry[] {
+  return Array.isArray(value)
+}
+
+function isProjectEntries(value: unknown): value is ProjectEntry[] {
+  return Array.isArray(value)
+}
+
+function isSkillGroups(value: unknown): value is SkillGroup[] {
+  return Array.isArray(value)
+}
+
+function isPersonalRows(value: unknown): value is PersonalRow[] {
+  return Array.isArray(value)
+}
+
+export function sectionToContent(section: CVSection): string {
+  switch (section.type) {
+    case 'experience':
+      return serializeExperienceContent(section.entries)
+    case 'education':
+      return serializeEducationContent(section.entries)
+    case 'projects':
+      return serializeProjectContent(section.entries)
+    case 'skills':
+      return serializeSkillsContent(section.groups)
+    case 'personal':
+      return serializeKeyValueContent(section.rows)
+    case 'custom':
+      return section.body
+    case 'photo':
+      return ''
+  }
+}
+
+export function normalizeSection(input: CVSection | LegacySection): CVSection {
+  const legacy = input as LegacySection
+  const content = legacy.content ?? legacy.body ?? ''
+
+  switch (legacy.type) {
+    case 'experience':
+      return {
+        ...baseSection(legacy, 'Experience'),
+        type: 'experience',
+        layout: legacy.layout ?? 'vertical',
+        entries: isExperienceEntries(legacy.entries) ? legacy.entries : parseExperienceContent(content),
+      }
+    case 'education':
+      return {
+        ...baseSection(legacy, 'Education'),
+        type: 'education',
+        layout: legacy.layout ?? 'vertical',
+        entries: isEducationEntries(legacy.entries) ? legacy.entries : parseEducationContent(content),
+      }
+    case 'projects':
+      return {
+        ...baseSection(legacy, 'Projects'),
+        type: 'projects',
+        entries: isProjectEntries(legacy.entries) ? legacy.entries : parseProjectContent(content),
+      }
+    case 'skills':
+      return {
+        ...baseSection(legacy, 'Skills'),
+        type: 'skills',
+        groups: isSkillGroups(legacy.groups) ? legacy.groups : parseSkillsContent(content),
+      }
+    case 'personal':
+      return {
+        ...baseSection(legacy, 'Personal Information'),
+        type: 'personal',
+        rows: isPersonalRows(legacy.rows) ? legacy.rows : parseKeyValueContent(content),
+      }
+    case 'photo':
+      return {
+        ...baseSection(legacy, 'Photo'),
+        type: 'photo',
+        photoUrl: legacy.photoUrl,
+        photoAscii: legacy.photoAscii,
+        photoAsciiColors: legacy.photoAsciiColors,
+        photoWidth: legacy.photoWidth,
+        photoHeight: legacy.photoHeight,
+        photoDensity: legacy.photoDensity,
+        photoMode: legacy.photoMode,
+      }
+    case 'custom':
+    default:
+      return {
+        ...baseSection({ ...legacy, type: 'custom' }, legacy.title ?? 'Custom Section'),
+        type: 'custom',
+        body: content,
+      }
+  }
+}
+
+export function normalizeSectionInput(input: CVSectionInput | Omit<LegacySection, 'id'>): CVSectionInput {
+  const section = normalizeSection({ id: '', ...input } as LegacySection)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id, ...withoutId } = section
+  return withoutId
+}
+
+export function legacyContentSection(input: Omit<LegacySection, 'id'>): CVSectionInput {
+  return normalizeSectionInput(input)
+}
+
+export function normalizeCV(input: Partial<CV> | null | undefined): CV {
+  return {
+    meta: {
+      name: input?.meta?.name ?? 'Your Name',
+      title: input?.meta?.title ?? '',
+      email: input?.meta?.email ?? '',
+      ...(input?.meta ?? {}),
+    },
+    sections: (input?.sections ?? []).map((section) => normalizeSection(section as CVSection | LegacySection)),
+    style: { ...DEFAULT_STYLE, ...(input?.style ?? {}) },
+    docMode: input?.docMode ?? 'md',
+  }
 }

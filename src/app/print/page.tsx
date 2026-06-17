@@ -6,6 +6,7 @@ import { CVPreview } from '@/components/Preview/CVPreview'
 import { CV } from '@/types/cv'
 import { cvToJsonLd } from '@/lib/cv-to-jsonld'
 import { extractKeywords } from '@/lib/cv-metadata'
+import { normalizeCV } from '@/lib/section-formatting'
 
 function PrintContent() {
   const searchParams = useSearchParams()
@@ -57,7 +58,7 @@ function PrintContent() {
         return
       }
       const data: CV = await res.json()
-      setCv(data)
+      setCv(normalizeCV(data))
     }
 
     fetchCv().catch((e) => setError(String(e)))

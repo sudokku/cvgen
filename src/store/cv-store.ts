@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { CV, CVMeta, CVSection, CVStyle, DEFAULT_STYLE, DocMode, SectionType } from '@/types/cv'
+import { CV, CVMeta, CVSection, CVSectionInput, CVStyle, DEFAULT_STYLE, DocMode, SectionType } from '@/types/cv'
 import { nanoid } from 'nanoid'
+import { normalizeCV, normalizeSection, normalizeSectionInput } from '@/lib/section-formatting'
 
 const defaultMeta: CVMeta = {
   name: 'Your Name',
@@ -17,7 +18,24 @@ const defaultSections: CVSection[] = [
     type: 'experience',
     title: 'Experience',
     subtitle: '',
-    content: `### Senior Engineer @ Acme Corp | 2022–present\nLed backend infrastructure team. Built distributed caching layer with Go and Redis.\n\n### Engineer @ Beta Ltd | 2019–2022\nFull-stack development with React and Node.js. Owned CI/CD pipeline migration.`,
+    entries: [
+      {
+        role: 'Senior Engineer',
+        company: 'Acme Corp',
+        period: '2022–present',
+        details: [
+          'Led backend infrastructure team. Built distributed caching layer with Go and Redis.',
+        ],
+      },
+      {
+        role: 'Engineer',
+        company: 'Beta Ltd',
+        period: '2019–2022',
+        details: [
+          'Full-stack development with React and Node.js. Owned CI/CD pipeline migration.',
+        ],
+      },
+    ],
     layout: 'vertical',
   },
   {
@@ -25,7 +43,14 @@ const defaultSections: CVSection[] = [
     type: 'education',
     title: 'Education',
     subtitle: '',
-    content: `### BSc Computer Science | State University | 2015–2019\nGraduated with honours. Thesis on distributed systems.`,
+    entries: [
+      {
+        degree: 'BSc Computer Science',
+        institution: 'State University',
+        period: '2015–2019',
+        details: ['Graduated with honours. Thesis on distributed systems.'],
+      },
+    ],
     layout: 'vertical',
   },
   {
@@ -33,7 +58,11 @@ const defaultSections: CVSection[] = [
     type: 'skills',
     title: 'Skills',
     subtitle: '',
-    content: `Languages:   TypeScript · Go · Python · Rust\nFrameworks:  Next.js · React · Gin · FastAPI\nInfra:       Docker · Kubernetes · AWS · Terraform`,
+    groups: [
+      { category: 'Languages', items: ['TypeScript', 'Go', 'Python', 'Rust'] },
+      { category: 'Frameworks', items: ['Next.js', 'React', 'Gin', 'FastAPI'] },
+      { category: 'Infra', items: ['Docker', 'Kubernetes', 'AWS', 'Terraform'] },
+    ],
     layout: 'list',
   },
 ]
@@ -49,28 +78,28 @@ interface CVStore {
   reorderSections: (ids: string[]) => void
   selectSection: (id: string | null) => void
   updateDocMode: (mode: DocMode) => void
-  importCV: (meta: CVMeta, sections: Omit<CVSection, 'id'>[]) => void
+  importCV: (meta: CVMeta, sections: CVSectionInput[]) => void
   replaceCV: (cv: CV) => void
 }
 
-function sectionDefaults(type: SectionType): Partial<CVSection> {
+function sectionDefaults(type: SectionType): CVSectionInput {
   switch (type) {
     case 'experience':
-      return { title: 'Experience', layout: 'vertical', content: '### Role @ Company | Year–Year\nDescribe your work here.' }
+      return { type, title: 'Experience', subtitle: '', layout: 'vertical', entries: [{ role: 'Role', company: 'Company', period: 'Year–Year', details: ['Describe your work here.'] }] }
     case 'education':
-      return { title: 'Education', layout: 'vertical', content: '### Degree | Institution | Year–Year\nDescribe your studies.' }
+      return { type, title: 'Education', subtitle: '', layout: 'vertical', entries: [{ degree: 'Degree', institution: 'Institution', period: 'Year–Year', details: ['Describe your studies.'] }] }
     case 'skills':
-      return { title: 'Skills', layout: 'list', content: 'Languages:   skill1 · skill2 · skill3\nTools:       tool1 · tool2 · tool3' }
+      return { type, title: 'Skills', subtitle: '', layout: 'list', groups: [{ category: 'Languages', items: ['skill1', 'skill2', 'skill3'] }, { category: 'Tools', items: ['tool1', 'tool2', 'tool3'] }] }
     case 'projects':
-      return { title: 'Projects', layout: 'list', content: '### Project Name\nBrief description of what you built. Stack: TypeScript, React, Node.js' }
+      return { type, title: 'Projects', subtitle: '', layout: 'list', entries: [{ name: 'Project Name', description: 'Brief description of what you built.', stack: ['TypeScript', 'React', 'Node.js'], repo: '' }] }
     case 'photo':
-      return { title: 'Photo', layout: 'list', content: '' }
+      return { type, title: 'Photo', subtitle: '', layout: 'list' }
     case 'personal':
-      return { title: 'Personal Information', layout: 'list', content: 'Date of birth: \nNationality: \nGender: ' }
+      return { type, title: 'Personal Information', subtitle: '', layout: 'list', rows: [{ key: 'Date of birth', value: '' }, { key: 'Nationality', value: '' }, { key: 'Gender', value: '' }] }
     case 'custom':
-      return { title: 'Custom Section', layout: 'list', content: 'Write anything here.' }
+      return { type, title: 'Custom Section', subtitle: '', layout: 'list', body: 'Write anything here.' }
     default:
-      return { title: 'Section', layout: 'list', content: '' }
+      return { type: 'custom', title: 'Section', subtitle: '', layout: 'list', body: '' }
   }
 }
 
@@ -87,13 +116,10 @@ export const useCVStore = create<CVStore>()(
         set((s) => ({ cv: { ...s.cv, style: { ...s.cv.style, ...style } } })),
 
       addSection: (type) => {
-        const newSection: CVSection = {
+        const newSection = normalizeSection({
           id: nanoid(),
-          type,
-          content: '',
-          subtitle: '',
           ...sectionDefaults(type),
-        } as CVSection
+        })
         set((s) => ({
           cv: { ...s.cv, sections: [...s.cv.sections, newSection] },
           selectedSectionId: newSection.id,
@@ -112,7 +138,7 @@ export const useCVStore = create<CVStore>()(
         set((s) => ({
           cv: {
             ...s.cv,
-            sections: s.cv.sections.map((sec) => (sec.id === id ? { ...sec, ...patch } : sec)),
+            sections: s.cv.sections.map((sec) => (sec.id === id ? ({ ...sec, ...patch } as CVSection) : sec)),
           },
         })),
 
@@ -133,7 +159,7 @@ export const useCVStore = create<CVStore>()(
             id: nanoid(),
             subtitle: '',
             layout: 'list',
-            ...sec,
+            ...normalizeSectionInput(sec),
           }))
           return {
             cv: { ...s.cv, meta, sections: materialisedSections },
@@ -142,9 +168,12 @@ export const useCVStore = create<CVStore>()(
         }),
 
       replaceCV: (cv) =>
-        set({
-          cv,
-          selectedSectionId: cv.sections[0]?.id ?? null,
+        set(() => {
+          const normalized = normalizeCV(cv)
+          return {
+            cv: normalized,
+            selectedSectionId: normalized.sections[0]?.id ?? null,
+          }
         }),
     }),
     {
@@ -152,15 +181,16 @@ export const useCVStore = create<CVStore>()(
       // Merge persisted data with current defaults so new fields (e.g. style) never come back undefined
       merge: (persisted: unknown, current: CVStore) => {
         const p = persisted as Partial<CVStore> & { cv?: Partial<CV> }
+        const normalizedCV = normalizeCV({
+          ...current.cv,
+          ...(p.cv ?? {}),
+          docMode: p.cv?.docMode ?? 'md',
+          style: { ...DEFAULT_STYLE, ...(p.cv?.style ?? {}) },
+        })
         return {
           ...current,
           ...p,
-          cv: {
-            ...current.cv,
-            ...(p.cv ?? {}),
-            docMode: p.cv?.docMode ?? 'md',
-            style: { ...DEFAULT_STYLE, ...(p.cv?.style ?? {}) },
-          },
+          cv: normalizedCV,
         }
       },
     }

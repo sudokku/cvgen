@@ -1,8 +1,8 @@
 import { CV } from '@/types/cv'
-import { parseEducationContent, parseExperienceContent, parseSkillsContent } from './section-formatting'
+import { normalizeCV } from './section-formatting'
 
 export function cvToJsonLd(cv: CV): object {
-  const { meta, sections } = cv
+  const { meta, sections } = normalizeCV(cv)
 
   const resolvedLinks =
     meta.links && meta.links.length > 0
@@ -20,7 +20,7 @@ export function cvToJsonLd(cv: CV): object {
   const skillsSections = sections.filter((s) => s.type === 'skills')
 
   const hasOccupation = experienceSections.flatMap((s) =>
-    parseExperienceContent(s.content).map((entry) => ({
+    s.entries.map((entry) => ({
       '@type': 'Role',
       roleName: entry.role,
       ...(entry.company ? { 'schema:worksFor': { '@type': 'Organization', name: entry.company } } : {}),
@@ -29,14 +29,14 @@ export function cvToJsonLd(cv: CV): object {
   )
 
   const alumniOf = educationSections.flatMap((s) =>
-    parseEducationContent(s.content).map((entry) => ({
+    s.entries.map((entry) => ({
       '@type': 'EducationalOrganization',
       name: entry.institution || entry.degree,
     }))
   )
 
   const knowsAbout = skillsSections.flatMap((s) =>
-    parseSkillsContent(s.content)
+    s.groups
       .flatMap((group) => group.items)
       .filter((item) => item.length > 0 && item.length <= 50)
   ).slice(0, 40)

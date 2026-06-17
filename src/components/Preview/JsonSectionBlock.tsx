@@ -1,11 +1,5 @@
 import React from 'react'
-import { CVSection, CVStyle } from '@/types/cv'
-import {
-  parseEducationContent,
-  parseExperienceContent,
-  parseProjectContent,
-  parseSkillsContent,
-} from '@/lib/section-formatting'
+import { CVSection, CVStyle, PhotoSection } from '@/types/cv'
 
 // ── Token span helpers ──────────────────────────────────────────────────────
 
@@ -96,7 +90,7 @@ function WrappableLine({ indent = '', children }: { indent?: string; children?: 
 function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
   const isEdu = section.type === 'education'
   const entries = isEdu
-    ? parseEducationContent(section.content).map((entry) => ({
+    ? section.entries.map((entry) => ({
         primaryKey: 'degree',
         primaryVal: entry.degree,
         secondaryKey: 'institution',
@@ -104,7 +98,8 @@ function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
         period: entry.period,
         highlights: entry.details,
       }))
-    : parseExperienceContent(section.content).map((entry) => ({
+    : section.type === 'experience'
+    ? section.entries.map((entry) => ({
         primaryKey: 'role',
         primaryVal: entry.role,
         secondaryKey: 'company',
@@ -112,6 +107,7 @@ function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
         period: entry.period,
         highlights: entry.details,
       }))
+    : []
   const key = isEdu ? 'education' : 'experience'
 
   return (
@@ -149,7 +145,8 @@ function renderExperience(section: CVSection, style: CVStyle): React.ReactNode {
 }
 
 function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
-  const lines = parseSkillsContent(section.content)
+  if (section.type !== 'skills') return renderPlain(section, style)
+  const lines = section.groups
   const allCategorised = lines.length > 0 && lines.every((l) => l.category)
 
   if (allCategorised) {
@@ -188,7 +185,8 @@ function renderSkills(section: CVSection, style: CVStyle): React.ReactNode {
 }
 
 function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
-  const entries = parseProjectContent(section.content)
+  if (section.type !== 'projects') return renderPlain(section, style)
+  const entries = section.entries
   if (entries.length === 0) {
     return renderPlain(section, style)
   }
@@ -241,7 +239,7 @@ function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
   )
 }
 
-function renderPhoto(section: CVSection, style: CVStyle): React.ReactNode {
+function renderPhoto(section: PhotoSection, style: CVStyle): React.ReactNode {
   if (!section.photoUrl) {
     return <Line><JKey text="photo" style={style} /><JPunct text=": " style={style} /><span style={{ color: style.jsonPunctuationColor }}>null</span></Line>
   }
@@ -257,7 +255,8 @@ function renderPhoto(section: CVSection, style: CVStyle): React.ReactNode {
 }
 
 function renderPlain(section: CVSection, style: CVStyle): React.ReactNode {
-  const lines = section.content.split('\n').map((l) => l.trim()).filter(Boolean)
+  const content = section.type === 'custom' ? section.body : ''
+  const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
   if (lines.length === 0) {
     return <WrappableLine><JKey text={section.title.toLowerCase()} style={style} /><JPunct text=": " style={style} /><JStringValue text="" style={style} /></WrappableLine>
   }

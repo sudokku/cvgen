@@ -2,26 +2,19 @@
 
 import { type ReactNode, useCallback, useRef, useState } from 'react'
 import { useCVStore } from '@/store/cv-store'
-import { CVSection, CVStyle, RenderMode, SectionType, TimelineLayout } from '@/types/cv'
-import { useAsciiGenerator } from '@/lib/use-ascii'
 import {
-  type EducationEntryModel,
-  type ExperienceEntryModel,
-  type KeyValueModel,
-  type ProjectEntryModel,
-  type SkillGroupModel,
-  canParseStructuredTimelineContent,
-  parseEducationContent,
-  parseExperienceContent,
-  parseKeyValueContent,
-  parseProjectContent,
-  parseSkillsContent,
-  serializeEducationContent,
-  serializeExperienceContent,
-  serializeKeyValueContent,
-  serializeProjectContent,
-  serializeSkillsContent,
-} from '@/lib/section-formatting'
+  CVSection,
+  CVStyle,
+  EducationEntry,
+  ExperienceEntry,
+  PersonalRow,
+  ProjectEntry,
+  RenderMode,
+  SectionType,
+  SkillGroup,
+  TimelineLayout,
+} from '@/types/cv'
+import { useAsciiGenerator } from '@/lib/use-ascii'
 
 const TIMELINE_TYPES: SectionType[] = ['experience', 'education']
 const DEFAULT_MAX_COLS = 80
@@ -30,11 +23,11 @@ const DEFAULT_DENSITY = 2
 const fieldClass = 'bg-gray-950 border border-gray-800 rounded px-2 py-1 text-xs text-gray-200 font-mono focus:outline-none focus:border-gray-600'
 const labelClass = 'text-xs font-mono text-gray-500'
 
-const blankExperience: ExperienceEntryModel = { role: '', company: '', period: '', details: [] }
-const blankEducation: EducationEntryModel = { degree: '', institution: '', period: '', details: [] }
-const blankProject: ProjectEntryModel = { name: '', description: '', stack: [], repo: '' }
-const blankSkill: SkillGroupModel = { category: '', items: [] }
-const blankKeyValue: KeyValueModel = { key: '', value: '' }
+const blankExperience: ExperienceEntry = { role: '', company: '', period: '', details: [] }
+const blankEducation: EducationEntry = { degree: '', institution: '', period: '', details: [] }
+const blankProject: ProjectEntry = { name: '', description: '', stack: [], repo: '' }
+const blankSkill: SkillGroup = { category: '', items: [] }
+const blankKeyValue: PersonalRow = { key: '', value: '' }
 
 export function SectionEditor() {
   const { cv, selectedSectionId, updateSection } = useCVStore()
@@ -51,10 +44,11 @@ export function SectionEditor() {
     [section, updateSection]
   )
 
-  const maxCols = section?.photoWidth ?? DEFAULT_MAX_COLS
-  const maxRows = section?.photoHeight ?? DEFAULT_MAX_ROWS
-  const density = section?.photoDensity ?? DEFAULT_DENSITY
-  const photoUrl = section?.photoUrl
+  const photoSection = section?.type === 'photo' ? section : null
+  const maxCols = photoSection?.photoWidth ?? DEFAULT_MAX_COLS
+  const maxRows = photoSection?.photoHeight ?? DEFAULT_MAX_ROWS
+  const density = photoSection?.photoDensity ?? DEFAULT_DENSITY
+  const photoUrl = photoSection?.photoUrl
 
   const handlePhotoUpload = useCallback(
     async (file: File) => {
@@ -165,9 +159,10 @@ export function SectionEditor() {
   )
 
   const renderExperienceControls = () => {
-    const entries = parseExperienceContent(section.content)
+    if (section.type !== 'experience') return null
+    const entries = section.entries
     const editable = entries.length > 0 ? entries : [blankExperience]
-    const commit = (next: ExperienceEntryModel[]) => update({ content: serializeExperienceContent(next) })
+    const commit = (next: ExperienceEntry[]) => update({ entries: next } as Partial<CVSection>)
     return (
       <StructuredPanel title="Experience fields" addButton={renderEntryActions(() => commit([...editable, { role: 'Role', company: 'Company', period: 'Year-Year', details: [] }]))}>
         {editable.map((entry, index) => (
@@ -186,9 +181,10 @@ export function SectionEditor() {
   }
 
   const renderEducationControls = () => {
-    const entries = parseEducationContent(section.content)
+    if (section.type !== 'education') return null
+    const entries = section.entries
     const editable = entries.length > 0 ? entries : [blankEducation]
-    const commit = (next: EducationEntryModel[]) => update({ content: serializeEducationContent(next) })
+    const commit = (next: EducationEntry[]) => update({ entries: next } as Partial<CVSection>)
     return (
       <StructuredPanel title="Education fields" addButton={renderEntryActions(() => commit([...editable, { degree: 'Degree', institution: 'Institution', period: 'Year-Year', details: [] }]))}>
         {editable.map((entry, index) => (
@@ -205,9 +201,10 @@ export function SectionEditor() {
   }
 
   const renderProjectControls = () => {
-    const entries = parseProjectContent(section.content)
+    if (section.type !== 'projects') return null
+    const entries = section.entries
     const editable = entries.length > 0 ? entries : [blankProject]
-    const commit = (next: ProjectEntryModel[]) => update({ content: serializeProjectContent(next) })
+    const commit = (next: ProjectEntry[]) => update({ entries: next } as Partial<CVSection>)
     return (
       <StructuredPanel title="Project fields" addButton={renderEntryActions(() => commit([...editable, { name: 'Project Name', description: '', stack: [], repo: '' }]))}>
         {editable.map((entry, index) => (
@@ -224,9 +221,10 @@ export function SectionEditor() {
   }
 
   const renderSkillsControls = () => {
-    const groups = parseSkillsContent(section.content)
+    if (section.type !== 'skills') return null
+    const groups = section.groups
     const editable = groups.length > 0 ? groups : [blankSkill]
-    const commit = (next: SkillGroupModel[]) => update({ content: serializeSkillsContent(next) })
+    const commit = (next: SkillGroup[]) => update({ groups: next } as Partial<CVSection>)
     return (
       <StructuredPanel title="Skill groups" addButton={renderEntryActions(() => commit([...editable, { category: 'Category', items: [] }]))}>
         {editable.map((group, index) => (
@@ -241,9 +239,10 @@ export function SectionEditor() {
   }
 
   const renderPersonalControls = () => {
-    const rows = parseKeyValueContent(section.content)
+    if (section.type !== 'personal') return null
+    const rows = section.rows
     const editable = rows.length > 0 ? rows : [blankKeyValue]
-    const commit = (next: KeyValueModel[]) => update({ content: serializeKeyValueContent(next) })
+    const commit = (next: PersonalRow[]) => update({ rows: next } as Partial<CVSection>)
     return (
       <StructuredPanel title="Personal fields" addButton={renderEntryActions(() => commit([...editable, { key: 'Field', value: '' }]))}>
         {editable.map((row, index) => (
@@ -260,15 +259,28 @@ export function SectionEditor() {
   const renderStructuredControls = () => {
     switch (section.type) {
       case 'experience':
-        return canParseStructuredTimelineContent(section.content) ? renderExperienceControls() : null
+        return renderExperienceControls()
       case 'education':
-        return canParseStructuredTimelineContent(section.content) ? renderEducationControls() : null
+        return renderEducationControls()
       case 'projects':
-        return canParseStructuredTimelineContent(section.content) ? renderProjectControls() : null
+        return renderProjectControls()
       case 'skills':
         return renderSkillsControls()
       case 'personal':
         return renderPersonalControls()
+      case 'custom':
+        return (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Body</span>
+            <textarea
+              value={section.body}
+              onChange={(e) => update({ body: e.target.value } as Partial<CVSection>)}
+              className="w-full min-h-[180px] bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-200 font-mono resize-y focus:outline-none focus:border-gray-600 placeholder-gray-700"
+              placeholder="Write section text here..."
+              spellCheck={false}
+            />
+          </label>
+        )
       default:
         return null
     }
@@ -462,21 +474,6 @@ export function SectionEditor() {
       ) : (
         <div className="space-y-3">
           {renderStructuredControls()}
-          {canUseTimeline && section.layout !== 'list' && (
-            <p className="text-xs text-gray-600 font-mono mb-2">
-              Format: <code className="text-gray-500">### Role @ Company | Period</code>
-            </p>
-          )}
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Source</span>
-            <textarea
-              value={section.content}
-              onChange={(e) => update({ content: e.target.value })}
-              className="w-full min-h-[180px] bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-200 font-mono resize-y focus:outline-none focus:border-gray-600 placeholder-gray-700"
-              placeholder="Write markdown content here..."
-              spellCheck={false}
-            />
-          </label>
         </div>
       )}
 

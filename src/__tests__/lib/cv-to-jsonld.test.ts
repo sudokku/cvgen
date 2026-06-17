@@ -147,7 +147,7 @@ describe('cvToJsonLd', () => {
             id: 'exp-1',
             type: 'experience',
             title: 'Experience',
-            content: '### Engineer @ Acme Corp | 2020–2023\nBuilt things.',
+            entries: [{ role: 'Engineer', company: 'Acme Corp', period: '2020–2023', details: ['Built things.'] }],
           },
         ],
       })
@@ -166,7 +166,7 @@ describe('cvToJsonLd', () => {
             id: 'exp-1',
             type: 'experience',
             title: 'Experience',
-            content: '### Engineer @ Acme Corp | 2020–2023',
+            entries: [{ role: 'Engineer', company: 'Acme Corp', period: '2020–2023', details: [] }],
           },
         ],
       })
@@ -185,7 +185,7 @@ describe('cvToJsonLd', () => {
             id: 'exp-1',
             type: 'experience',
             title: 'Experience',
-            content: '### Freelancer | 2020–2023',
+            entries: [{ role: 'Freelancer', company: '', period: '2020–2023', details: [] }],
           },
         ],
       })
@@ -209,7 +209,7 @@ describe('cvToJsonLd', () => {
             id: 'edu-1',
             type: 'education',
             title: 'Education',
-            content: '### BSc Computer Science | State University | 2015–2019',
+            entries: [{ degree: 'BSc Computer Science', institution: 'State University', period: '2015–2019', details: [] }],
           },
         ],
       })
@@ -227,7 +227,7 @@ describe('cvToJsonLd', () => {
             id: 'edu-1',
             type: 'education',
             title: 'Education',
-            content: '### State University | 2015–2019',
+            entries: [{ degree: 'State University', institution: '', period: '2015–2019', details: [] }],
           },
         ],
       })
@@ -252,7 +252,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: 'TypeScript, React, Node.js',
+            groups: [{ category: '', items: ['TypeScript', 'React', 'Node.js'] }],
           },
         ],
       })
@@ -271,7 +271,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: 'Languages: TypeScript, Go',
+            groups: [{ category: 'Languages', items: ['TypeScript', 'Go'] }],
           },
         ],
       })
@@ -291,7 +291,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: `${longSkill}, TypeScript`,
+            groups: [{ category: '', items: [longSkill, 'TypeScript'] }],
           },
         ],
       })
@@ -310,7 +310,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: manySkills,
+            groups: [{ category: '', items: manySkills.split(', ') }],
           },
         ],
       })

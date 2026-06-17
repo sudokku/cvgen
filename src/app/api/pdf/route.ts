@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 import { CV } from '@/types/cv'
 import { injectMetadata } from '@/lib/cv-metadata'
 import { launchBrowser } from '@/lib/browser'
+import { normalizeCV } from '@/lib/section-formatting'
 
 interface CacheEntry {
   cv: CV
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing cv field' }, { status: 400 })
   }
 
-  const cv: CV = body.cv
+  const cv: CV = normalizeCV(body.cv as CV)
   evictExpired()
 
   const id = nanoid()

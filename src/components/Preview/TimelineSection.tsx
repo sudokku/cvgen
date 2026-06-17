@@ -1,11 +1,17 @@
 'use client'
 
 import React from 'react'
-import { parseTimelineEntries } from '@/lib/timeline-parser'
 import { CVStyle, TimelineLayout } from '@/types/cv'
 
+export interface TimelineDisplayEntry {
+  role: string
+  company: string
+  period: string
+  description: string
+}
+
 interface Props {
-  content: string
+  entries: TimelineDisplayEntry[]
   layout: TimelineLayout
   style: CVStyle
 }
@@ -107,9 +113,7 @@ function PreLine({
   )
 }
 
-export function TimelineSection({ content, layout, style }: Props) {
-  const entries = parseTimelineEntries(content)
-
+export function TimelineSection({ entries, layout, style }: Props) {
   if (layout === 'horizontal') {
     return (
       <div style={{ overflowX: 'auto', paddingBottom: '8px' }}>

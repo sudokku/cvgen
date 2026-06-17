@@ -1,29 +1,29 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { create } from 'zustand'
-import { CV, CVMeta, CVSection, CVStyle, DEFAULT_STYLE, DocMode, SectionType } from '@/types/cv'
+import { CV, CVMeta, CVSection, CVSectionInput, CVStyle, DEFAULT_STYLE, DocMode, SectionType } from '@/types/cv'
 import { nanoid } from 'nanoid'
 
 // ─── Reproduce the store logic WITHOUT the persist middleware ──────────────
 // This lets us test all mutations in isolation, with a fresh store each test,
 // without fighting localStorage or Zustand's persisted-state merge logic.
 
-function sectionDefaults(type: SectionType): Partial<CVSection> {
+function sectionDefaults(type: SectionType): CVSectionInput {
   switch (type) {
     case 'experience':
-      return { title: 'Experience', layout: 'vertical', content: '### Role @ Company | Year–Year\nDescribe your work here.' }
+      return { type, title: 'Experience', layout: 'vertical', entries: [{ role: 'Role', company: 'Company', period: 'Year–Year', details: ['Describe your work here.'] }] }
     case 'education':
-      return { title: 'Education', layout: 'vertical', content: '### Degree | Institution | Year–Year\nDescribe your studies.' }
+      return { type, title: 'Education', layout: 'vertical', entries: [{ degree: 'Degree', institution: 'Institution', period: 'Year–Year', details: ['Describe your studies.'] }] }
     case 'skills':
-      return { title: 'Skills', layout: 'list', content: 'Languages:   skill1 · skill2 · skill3\nTools:       tool1 · tool2 · tool3' }
+      return { type, title: 'Skills', layout: 'list', groups: [{ category: 'Languages', items: ['skill1', 'skill2', 'skill3'] }, { category: 'Tools', items: ['tool1', 'tool2', 'tool3'] }] }
     case 'projects':
-      return { title: 'Projects', layout: 'list', content: '### Project Name\nBrief description.' }
+      return { type, title: 'Projects', layout: 'list', entries: [{ name: 'Project Name', description: 'Brief description.', stack: [], repo: '' }] }
     case 'photo':
-      return { title: 'Photo', layout: 'list', content: '' }
+      return { type, title: 'Photo', layout: 'list' }
     case 'personal':
-      return { title: 'Personal Information', layout: 'list', content: 'Date of birth: \nNationality: \nGender: ' }
+      return { type, title: 'Personal Information', layout: 'list', rows: [{ key: 'Date of birth', value: '' }, { key: 'Nationality', value: '' }, { key: 'Gender', value: '' }] }
     case 'custom':
     default:
-      return { title: 'Custom Section', layout: 'list', content: 'Write anything here.' }
+      return { type: 'custom', title: 'Custom Section', layout: 'list', body: 'Write anything here.' }
   }
 }
 
@@ -37,7 +37,7 @@ const initialSection: CVSection = {
   id: 'initial-section',
   type: 'experience',
   title: 'Experience',
-  content: '### Dev @ Foo | 2020–2023',
+  entries: [{ role: 'Dev', company: 'Foo', period: '2020–2023', details: [] }],
   subtitle: '',
   layout: 'vertical',
 }
@@ -53,7 +53,7 @@ interface CVStore {
   reorderSections: (ids: string[]) => void
   selectSection: (id: string | null) => void
   updateDocMode: (mode: DocMode) => void
-  importCV: (meta: CVMeta, sections: Omit<CVSection, 'id'>[]) => void
+  importCV: (meta: CVMeta, sections: CVSectionInput[]) => void
 }
 
 function createTestStore() {
@@ -75,8 +75,6 @@ function createTestStore() {
     addSection: (type) => {
       const newSection: CVSection = {
         id: nanoid(),
-        type,
-        content: '',
         subtitle: '',
         ...sectionDefaults(type),
       } as CVSection
@@ -236,7 +234,7 @@ describe('cv-store: updateSection', () => {
   it('preserves existing fields that are not in the patch', () => {
     store.getState().updateSection(initialSection.id, { title: 'Updated Title' })
     const updated = store.getState().cv.sections.find((s) => s.id === initialSection.id)
-    expect(updated?.content).toBe(initialSection.content)
+    expect(updated).toMatchObject({ entries: initialSection.entries })
     expect(updated?.type).toBe(initialSection.type)
   })
 })
@@ -279,9 +277,9 @@ describe('cv-store: importCV', () => {
 
   it('replaces sections with materialised versions of the imported sections', () => {
     const newMeta: CVMeta = { name: 'User', title: 'Dev', email: 'u@e.com' }
-    const imported: Omit<CVSection, 'id'>[] = [
-      { type: 'skills', title: 'Skills', content: 'TypeScript' },
-      { type: 'experience', title: 'Experience', content: '### Dev @ Foo | 2020' },
+    const imported: CVSectionInput[] = [
+      { type: 'skills', title: 'Skills', groups: [{ category: '', items: ['TypeScript'] }] },
+      { type: 'experience', title: 'Experience', entries: [{ role: 'Dev', company: 'Foo', period: '2020', details: [] }] },
     ]
     store.getState().importCV(newMeta, imported)
     const sections = store.getState().cv.sections
@@ -292,9 +290,9 @@ describe('cv-store: importCV', () => {
 
   it('assigns a unique id to each imported section', () => {
     const newMeta: CVMeta = { name: 'U', title: 'T', email: 'u@e.com' }
-    const imported: Omit<CVSection, 'id'>[] = [
-      { type: 'skills', title: 'Skills', content: 'TS' },
-      { type: 'skills', title: 'More Skills', content: 'Go' },
+    const imported: CVSectionInput[] = [
+      { type: 'skills', title: 'Skills', groups: [{ category: '', items: ['TS'] }] },
+      { type: 'skills', title: 'More Skills', groups: [{ category: '', items: ['Go'] }] },
     ]
     store.getState().importCV(newMeta, imported)
     const ids = store.getState().cv.sections.map((s) => s.id)
@@ -303,8 +301,8 @@ describe('cv-store: importCV', () => {
 
   it('selects the first imported section after import', () => {
     const newMeta: CVMeta = { name: 'U', title: 'T', email: 'u@e.com' }
-    const imported: Omit<CVSection, 'id'>[] = [
-      { type: 'skills', title: 'Skills', content: 'TS' },
+    const imported: CVSectionInput[] = [
+      { type: 'skills', title: 'Skills', groups: [{ category: '', items: ['TS'] }] },
     ]
     store.getState().importCV(newMeta, imported)
     const firstId = store.getState().cv.sections[0].id

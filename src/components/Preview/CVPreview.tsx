@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { CV, CVLink, CVSection, CVStyle, DocMode, RenderMode } from '@/types/cv'
-import { TimelineSection } from './TimelineSection'
+import { CV, CVLink, CVSection, CVStyle, DocMode, PersonalRow, RenderMode, SkillGroup } from '@/types/cv'
+import { TimelineDisplayEntry, TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
 import { AsciiArt } from './AsciiArt'
 import { JsonSectionBlock, JKey, JStr, JPunct } from './JsonSectionBlock'
-import { parseKeyValueContent, parseSkillsContent } from '@/lib/section-formatting'
+import { sectionToContent } from '@/lib/section-formatting'
 
 interface Props {
   cv: CV
@@ -122,6 +122,7 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
   const isTimeline =
     (section.type === 'experience' || section.type === 'education') &&
     section.layout !== 'list'
+  const generatedContent = sectionToContent(section)
 
   const headingSize = Math.round(effectiveStyle.fontSize * 1.1)
 
@@ -204,7 +205,7 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
       {/* Timeline */}
       {isTimeline && (
         <TimelineSection
-          content={section.content}
+          entries={timelineEntriesForSection(section)}
           layout={section.layout ?? 'vertical'}
           style={effectiveStyle}
         />
@@ -213,21 +214,21 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
       {/* Plain content — skills */}
       {!isTimeline && section.type !== 'photo' && section.type === 'skills' && (
         <pre style={preStyle}>
-          {renderSkillsContent(section.content, effectiveStyle)}
+          {renderSkillsContent(section.groups, effectiveStyle)}
         </pre>
       )}
 
       {/* Plain content — personal key/value pairs */}
       {!isTimeline && section.type !== 'photo' && section.type === 'personal' && (
         <pre style={preStyle}>
-          {renderKeyValueContent(section.content, effectiveStyle)}
+          {renderKeyValueContent(section.rows, effectiveStyle)}
         </pre>
       )}
 
       {/* Plain content — non-skills, non-personal */}
       {!isTimeline && section.type !== 'photo' && section.type !== 'skills' && section.type !== 'personal' && (
         <pre style={preStyle}>
-          {renderInlineMarkdown(section.content, effectiveStyle, h3Color)}
+          {renderInlineMarkdown(generatedContent, effectiveStyle, h3Color)}
         </pre>
       )}
     </div>
@@ -238,8 +239,27 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
  * Skills-specific renderer that colors the category label (text before `:`)
  * with categoryColor.
  */
-function renderSkillsContent(content: string, style: CVStyle): React.ReactNode[] {
-  const rows = parseSkillsContent(content)
+function timelineEntriesForSection(section: CVSection): TimelineDisplayEntry[] {
+  if (section.type === 'experience') {
+    return section.entries.map((entry) => ({
+      role: entry.role,
+      company: entry.company,
+      period: entry.period,
+      description: entry.details.join('\n'),
+    }))
+  }
+  if (section.type === 'education') {
+    return section.entries.map((entry) => ({
+      role: entry.degree,
+      company: entry.institution,
+      period: entry.period,
+      description: entry.details.join('\n'),
+    }))
+  }
+  return []
+}
+
+function renderSkillsContent(rows: SkillGroup[], style: CVStyle): React.ReactNode[] {
   return rows.map((row, li) => {
     const nodes: React.ReactNode[] = []
     if (row.category) {
@@ -260,8 +280,7 @@ function renderSkillsContent(content: string, style: CVStyle): React.ReactNode[]
   })
 }
 
-function renderKeyValueContent(content: string, style: CVStyle): React.ReactNode[] {
-  const rows = parseKeyValueContent(content)
+function renderKeyValueContent(rows: PersonalRow[], style: CVStyle): React.ReactNode[] {
   return rows.map((row, li) => (
     <span key={li}>
       {row.key && <span style={{ color: style.categoryColor, fontWeight: 600 }}>{row.key}</span>}

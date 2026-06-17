@@ -1,8 +1,9 @@
-import { CVLink, CVMeta, CVSection, SectionType } from '@/types/cv'
+import { CVLink, CVMeta, CVSectionInput, SectionType } from '@/types/cv'
+import { legacyContentSection } from './section-formatting'
 
 export interface EuropassImportResult {
   meta: CVMeta
-  sections: Omit<CVSection, 'id'>[]
+  sections: CVSectionInput[]
   warnings: string[]
 }
 
@@ -165,7 +166,7 @@ function inferLinkLabel(url: string, useCode: string): string {
 // OLD SCHEMA — EuroPass SkillsPassport XML
 // ══════════════════════════════════════════════════════════════════════════════
 
-function buildExperienceOld(doc: Document, warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildExperienceOld(doc: Document, warnings: string[]): CVSectionInput | null {
   const entries = Array.from(doc.querySelectorAll('WorkExperienceList > WorkExperience'))
   if (entries.length === 0) return null
 
@@ -182,10 +183,10 @@ function buildExperienceOld(doc: Document, warnings: string[]): Omit<CVSection, 
     return description ? `${header}\n${description}` : header
   })
 
-  return { type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildEducationOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildEducationOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const entries = Array.from(doc.querySelectorAll('EducationList > Education'))
   if (entries.length === 0) return null
 
@@ -201,10 +202,10 @@ function buildEducationOld(doc: Document, _warnings: string[]): Omit<CVSection, 
     return description ? `${header}\n${description}` : header
   })
 
-  return { type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildSkillsOld(doc: Document, warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSkillsOld(doc: Document, warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
 
   const motherTongues = Array.from(doc.querySelectorAll('MotherTongueList > MotherTongue'))
@@ -240,17 +241,17 @@ function buildSkillsOld(doc: Document, warnings: string[]): Omit<CVSection, 'id'
     warnings.push('No skills data found in this EuroPass XML.')
     return null
   }
-  return { type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildSummaryOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSummaryOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const rawSummary = val(doc, 'ProfileSummary Description') || text(doc, 'ProfileSummary Description')
     || val(doc, 'ProfileSummary') || text(doc, 'ProfileSummary')
   if (!rawSummary) return null
-  return { type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' })
 }
 
-function buildPersonalOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildPersonalOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
 
   const birthYear = text(doc, 'Demographics Birthdate Year')
@@ -274,10 +275,10 @@ function buildPersonalOld(doc: Document, _warnings: string[]): Omit<CVSection, '
   if (gender) rows.push(`Gender:        ${gender}`)
 
   if (rows.length === 0) return null
-  return { type: 'personal', title: 'Personal Information', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'personal', title: 'Personal Information', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildSoftSkillsOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSoftSkillsOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const buckets: Array<[string, string]> = [
     ['Communication', 'Communication Description'],
     ['Organisational', 'Organisational Description'],
@@ -292,10 +293,10 @@ function buildSoftSkillsOld(doc: Document, _warnings: string[]): Omit<CVSection,
     rows.push(`${label}:   ${md.replace(/\n/g, ' ')}`)
   }
   if (rows.length === 0) return null
-  return { type: 'custom', title: 'Soft Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Soft Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildAchievementsOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'>[] {
+function buildAchievementsOld(doc: Document, _warnings: string[]): CVSectionInput[] {
   const entries = Array.from(doc.querySelectorAll('AchievementList > Achievement'))
   if (entries.length === 0) return []
 
@@ -314,7 +315,7 @@ function buildAchievementsOld(doc: Document, _warnings: string[]): Omit<CVSectio
     groups.get(code)!.blocks.push(block)
   }
 
-  return Array.from(groups.values()).map(({ type, title, blocks }) => ({
+  return Array.from(groups.values()).map(({ type, title, blocks }) => legacyContentSection({
     type, title, subtitle: '', content: blocks.join('\n\n'), layout: 'list' as const,
   }))
 }
@@ -563,14 +564,14 @@ function buildMetaV4(doc: Document, warnings: string[]): CVMeta {
   return meta
 }
 
-function buildSummaryV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSummaryV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const rawSummary = textLocal(doc, 'CandidateProfile', 'ExecutiveSummary')
     || textLocal(doc, 'ExecutiveSummary')
   if (!rawSummary) return null
-  return { type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' })
 }
 
-function buildExperienceV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildExperienceV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const employerHistories = qAllLocal(doc, 'EmployerHistory')
   if (employerHistories.length === 0) return null
 
@@ -607,10 +608,10 @@ function buildExperienceV4(doc: Document, _warnings: string[]): Omit<CVSection, 
   }).filter(Boolean) as string[]
 
   if (blocks.length === 0) return null
-  return { type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildEducationV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildEducationV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const attendances = qAllLocal(doc, 'EducationOrganizationAttendance')
   if (attendances.length === 0) return null
 
@@ -633,10 +634,10 @@ function buildEducationV4(doc: Document, _warnings: string[]): Omit<CVSection, '
   }).filter(Boolean) as string[]
 
   if (blocks.length === 0) return null
-  return { type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildSkillsV4(doc: Document, warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSkillsV4(doc: Document, warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
 
   // Languages — PersonCompetency elements with TaxonomyID = "language"
@@ -709,10 +710,10 @@ function buildSkillsV4(doc: Document, warnings: string[]): Omit<CVSection, 'id'>
     return null
   }
 
-  return { type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildProjectsV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildProjectsV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const projects = qAllLocal(doc, 'Project')
   if (projects.length === 0) return null
 
@@ -734,7 +735,7 @@ function buildProjectsV4(doc: Document, _warnings: string[]): Omit<CVSection, 'i
   })
 
   if (blocks.length === 0) return null
-  return { type: 'projects', title: 'Projects', subtitle: '', content: blocks.join('\n\n'), layout: 'list' }
+  return legacyContentSection({ type: 'projects', title: 'Projects', subtitle: '', content: blocks.join('\n\n'), layout: 'list' })
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -874,7 +875,7 @@ function buildMetaFromText(headerLines: string[], warnings: string[]): CVMeta {
   return meta
 }
 
-function buildExperienceFromText(lines: string[]): Omit<CVSection, 'id'> | null {
+function buildExperienceFromText(lines: string[]): CVSectionInput | null {
   if (lines.length === 0) return null
 
   const blocks: string[] = []
@@ -910,10 +911,10 @@ function buildExperienceFromText(lines: string[]): Omit<CVSection, 'id'> | null 
   }
 
   if (blocks.length === 0) return null
-  return { type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildEducationFromText(lines: string[]): Omit<CVSection, 'id'> | null {
+function buildEducationFromText(lines: string[]): CVSectionInput | null {
   if (lines.length === 0) return null
 
   const blocks: string[] = []
@@ -941,13 +942,13 @@ function buildEducationFromText(lines: string[]): Omit<CVSection, 'id'> | null {
   }
 
   if (blocks.length === 0) return null
-  return { type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
 function buildSkillsFromText(
   langLines: string[],
   skillsLines: string[],
-): Omit<CVSection, 'id'> | null {
+): CVSectionInput | null {
   const rows: string[] = []
 
   // Language skills section
@@ -1005,13 +1006,13 @@ function buildSkillsFromText(
   }
 
   if (rows.length === 0) return null
-  return { type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildSummaryFromText(lines: string[]): Omit<CVSection, 'id'> | null {
+function buildSummaryFromText(lines: string[]): CVSectionInput | null {
   const content = lines.join('\n').trim()
   if (!content) return null
-  return { type: 'custom', title: 'Summary', subtitle: '', content, layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Summary', subtitle: '', content, layout: 'list' })
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1037,7 +1038,7 @@ export function parseEuropassXML(xmlString: string): EuropassImportResult {
     warnings.push(`Root element is <${rootName}>, expected <Candidate> or <SkillsPassport>. Will attempt import anyway.`)
   }
 
-  const sections: Omit<CVSection, 'id'>[] = []
+  const sections: CVSectionInput[] = []
   let meta: CVMeta
 
   if (isCandidate || (!isSkillsPassport && isCandidate)) {
@@ -1102,7 +1103,7 @@ export function parseEuropassText(text: string): EuropassImportResult {
   const headerLines = sections.get('__header__') ?? []
   const meta = buildMetaFromText(headerLines, warnings)
 
-  const cvSections: Omit<CVSection, 'id'>[] = []
+  const cvSections: CVSectionInput[] = []
 
   const aboutLines = sections.get('ABOUT MYSELF') ?? []
   const summarySection = buildSummaryFromText(aboutLines)
