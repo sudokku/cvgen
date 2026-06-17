@@ -7,6 +7,7 @@ import { MetaEditor } from '@/components/Editor/MetaEditor'
 import { SectionEditor } from '@/components/Editor/SectionEditor'
 import { StyleEditor } from '@/components/Editor/StyleEditor'
 import { ScaledPreview } from '@/components/Preview/ScaledPreview'
+import { TutorialDialog } from '@/components/TutorialDialog'
 import { printCV } from '@/lib/print-cv'
 import { CV } from '@/types/cv'
 
@@ -26,6 +27,18 @@ type SidebarTab = 'sections' | 'meta' | 'style' | 'import'
 type MobileTab = 'edit' | 'meta' | 'preview'
 type MobileEditView = 'list' | 'editor'
 type MobileMetaView = 'meta' | 'style' | 'import'
+
+function GuideButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-3 py-1 text-xs font-mono text-gray-400 hover:text-gray-100 transition-colors"
+      title="Open guide"
+    >
+      Guide
+    </button>
+  )
+}
 
 async function exportPDF(cv: CV, onStart: () => void, onDone: () => void) {
   onStart()
@@ -57,6 +70,7 @@ async function exportPDF(cv: CV, onStart: () => void, onDone: () => void) {
 export default function Home() {
   const { cv } = useCVStore()
   const [exporting, setExporting] = useState(false)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
 
   // Desktop state
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('sections')
@@ -111,6 +125,7 @@ export default function Home() {
           <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
             <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Preview</span>
             <div className="flex items-center gap-2">
+              <GuideButton onClick={() => setTutorialOpen(true)} />
               <button
                 onClick={() => exportPDF(cv, () => setExporting(true), () => setExporting(false))}
                 disabled={exporting}
@@ -142,8 +157,9 @@ export default function Home() {
           {/* Edit › Section list */}
           {mobileTab === 'edit' && mobileEditView === 'list' && (
             <div className="flex flex-col h-full bg-gray-900">
-              <div className="px-3 py-2 border-b border-gray-800 flex-shrink-0">
+              <div className="px-3 py-2 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
                 <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Sections</span>
+                <GuideButton onClick={() => setTutorialOpen(true)} />
               </div>
               <div className="flex-1 overflow-hidden">
                 <SectionList onSectionSelect={() => setMobileEditView('editor')} />
@@ -162,6 +178,9 @@ export default function Home() {
                   ←
                 </button>
                 <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Editor</span>
+                <div className="ml-auto">
+                  <GuideButton onClick={() => setTutorialOpen(true)} />
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto">
                 <SectionEditor />
@@ -172,20 +191,23 @@ export default function Home() {
           {/* Meta › Meta or Style */}
           {mobileTab === 'meta' && (
             <div className="flex flex-col h-full bg-gray-900">
-              <div className="flex border-b border-gray-800 flex-shrink-0">
-                {(['meta', 'style', 'import'] as MobileMetaView[]).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setMobileMetaView(v)}
-                    className={`flex-1 py-2 text-xs font-mono uppercase tracking-wide transition-colors ${
-                      mobileMetaView === v
-                        ? 'text-white border-b-2 border-blue-500'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
+              <div className="flex items-center border-b border-gray-800 flex-shrink-0">
+                <div className="flex flex-1">
+                  {(['meta', 'style', 'import'] as MobileMetaView[]).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setMobileMetaView(v)}
+                      className={`flex-1 py-2 text-xs font-mono uppercase tracking-wide transition-colors ${
+                        mobileMetaView === v
+                          ? 'text-white border-b-2 border-blue-500'
+                          : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+                <GuideButton onClick={() => setTutorialOpen(true)} />
               </div>
               <div className="flex-1 overflow-hidden">
                 {mobileMetaView === 'meta' && <MetaEditor />}
@@ -201,6 +223,7 @@ export default function Home() {
               <div className="px-4 py-2 border-b border-gray-800 flex items-center justify-between bg-gray-900 flex-shrink-0">
                 <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Preview</span>
                 <div className="flex items-center gap-2">
+                  <GuideButton onClick={() => setTutorialOpen(true)} />
                   <button
                     onClick={() => exportPDF(cv, () => setExporting(true), () => setExporting(false))}
                     disabled={exporting}
@@ -246,6 +269,7 @@ export default function Home() {
         </nav>
       </div>
 
+      <TutorialDialog open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
     </div>
   )
 }
