@@ -113,7 +113,7 @@ function PreLine({
   )
 }
 
-function InlineText({ text, style, color }: { text: string; style: CVStyle; color?: string }) {
+function InlineText({ text, style, color, keyPrefix = 'inline' }: { text: string; style: CVStyle; color?: string; keyPrefix?: string }) {
   const baseColor = color ?? style.fgColor
   const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`)/g
   const tokens: React.ReactNode[] = []
@@ -122,14 +122,14 @@ function InlineText({ text, style, color }: { text: string; style: CVStyle; colo
 
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) {
-      tokens.push(<span key={`t-${last}`} style={{ color: baseColor }}>{text.slice(last, match.index)}</span>)
+      tokens.push(<span key={`${keyPrefix}-t-${last}`} style={{ color: baseColor }}>{text.slice(last, match.index)}</span>)
     }
     if (match[0].startsWith('**')) {
-      tokens.push(<span key={`b-${match.index}`} style={{ color: baseColor, fontWeight: 700 }}>{match[2]}</span>)
+      tokens.push(<span key={`${keyPrefix}-b-${match.index}`} style={{ color: baseColor, fontWeight: 700 }}>{match[2]}</span>)
     } else {
       tokens.push(
         <span
-          key={`c-${match.index}`}
+          key={`${keyPrefix}-c-${match.index}`}
           style={{
             color: style.accentColor,
             backgroundColor: style.codeBgColor,
@@ -145,7 +145,7 @@ function InlineText({ text, style, color }: { text: string; style: CVStyle; colo
   }
 
   if (last < text.length) {
-    tokens.push(<span key="t-end" style={{ color: baseColor }}>{text.slice(last)}</span>)
+    tokens.push(<span key={`${keyPrefix}-t-end`} style={{ color: baseColor }}>{text.slice(last)}</span>)
   }
 
   return <>{tokens}</>
@@ -185,7 +185,7 @@ export function TimelineSection({ entries, layout, style }: Props) {
               {entry.company && <div style={{ color: style.companyColor }}>@ {entry.company}</div>}
               {entry.description && (
                 <div style={{ color: style.mutedColor, marginTop: '2px', whiteSpace: 'pre-wrap' }}>
-                  <InlineText text={entry.description} style={style} color={style.mutedColor} />
+                  <InlineText text={entry.description} style={style} color={style.mutedColor} keyPrefix={`horizontal-${i}`} />
                 </div>
               )}
             </div>
@@ -243,7 +243,7 @@ export function TimelineSection({ entries, layout, style }: Props) {
             {/* │  description line × N */}
             {descLines.map((l, li) => (
               <PreLine key={li} prefix={pipe} prefixColor={style.mutedColor}>
-                {l && <InlineText text={l} style={style} color={style.mutedColor} />}
+                {l && <InlineText text={l} style={style} color={style.mutedColor} keyPrefix={`vertical-${i}-${li}`} />}
               </PreLine>
             ))}
 

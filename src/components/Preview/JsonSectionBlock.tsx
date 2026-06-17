@@ -22,7 +22,7 @@ export function JNum({ value, style }: { value: number; style: CVStyle }) {
 // ── Inline markdown inside a JSON string value ──────────────────────────────
 // Strips ** and ` markers, applies weight/bg but keeps the string color.
 
-function JStringContent({ text, style, color }: { text: string; style: CVStyle; color?: string }) {
+function JStringContent({ text, style, color, keyPrefix = 'json-string' }: { text: string; style: CVStyle; color?: string; keyPrefix?: string }) {
   const c = color ?? style.jsonStringColor
   const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`)/g
   const tokens: React.ReactNode[] = []
@@ -31,17 +31,17 @@ function JStringContent({ text, style, color }: { text: string; style: CVStyle; 
 
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) {
-      tokens.push(<span key={`t-${last}`} style={{ color: c }}>{text.slice(last, match.index)}</span>)
+      tokens.push(<span key={`${keyPrefix}-t-${last}`} style={{ color: c }}>{text.slice(last, match.index)}</span>)
     }
     if (match[0].startsWith('**')) {
-      tokens.push(<span key={`b-${match.index}`} style={{ color: c, fontWeight: 700 }}>{match[2]}</span>)
+      tokens.push(<span key={`${keyPrefix}-b-${match.index}`} style={{ color: c, fontWeight: 700 }}>{match[2]}</span>)
     } else {
-      tokens.push(<span key={`c-${match.index}`} style={{ color: c, backgroundColor: style.codeBgColor, padding: '0 2px', borderRadius: '2px' }}>{match[3]}</span>)
+      tokens.push(<span key={`${keyPrefix}-c-${match.index}`} style={{ color: c, backgroundColor: style.codeBgColor, padding: '0 2px', borderRadius: '2px' }}>{match[3]}</span>)
     }
     last = match.index + match[0].length
   }
   if (last < text.length) {
-    tokens.push(<span key="t-end" style={{ color: c }}>{text.slice(last)}</span>)
+    tokens.push(<span key={`${keyPrefix}-t-end`} style={{ color: c }}>{text.slice(last)}</span>)
   }
 
   return <>{tokens}</>
@@ -52,7 +52,7 @@ function JStringValue({ text, style, trailing = '', color }: { text: string; sty
   return (
     <span>
       <JPunct text='"' style={style} />
-      <JStringContent text={text} style={style} color={color} />
+      <JStringContent text={text} style={style} color={color} keyPrefix={`json-${text.slice(0, 12)}-${trailing}`} />
       <JPunct text={`"${trailing}`} style={style} />
     </span>
   )

@@ -268,11 +268,11 @@ function renderSkillsContent(rows: SkillGroup[], style: CVStyle): React.ReactNod
         <span key="colon" style={{ color: style.fgColor }}>:</span>,
         ...row.items.flatMap((item, itemIndex) => [
           itemIndex > 0 ? <span key={`sep-${itemIndex}`} style={{ color: style.fgColor }}> · </span> : <span key="space" style={{ color: style.fgColor }}> </span>,
-          ...parseInline(item, style),
+          ...parseInline(item, style, undefined, `skill-${li}-${itemIndex}`),
         ])
       )
     } else {
-      nodes.push(...parseInline(row.items.join(' · '), style))
+      nodes.push(...parseInline(row.items.join(' · '), style, undefined, `skill-${li}`))
     }
     return (
       <span key={li}>
@@ -289,7 +289,7 @@ function renderKeyValueContent(rows: PersonalRow[], style: CVStyle): React.React
       {row.key && <span style={{ color: style.categoryColor, fontWeight: 600 }}>{row.key}</span>}
       {row.key && <span style={{ color: style.fgColor }}>:</span>}
       {row.value && <span style={{ color: style.fgColor }}> </span>}
-      {row.value && parseInline(row.value, style)}
+      {row.value && parseInline(row.value, style, undefined, `personal-${li}`)}
       {li < rows.length - 1 ? '\n' : ''}
     </span>
   ))
@@ -307,7 +307,7 @@ function renderInlineMarkdown(
 ): React.ReactNode[] {
   const lines = text.split('\n')
   return lines.map((line, li) => {
-    const parts = parseInline(line, style, h3Color)
+    const parts = parseInline(line, style, h3Color, `line-${li}`)
     return (
       <span key={li}>
         {parts}
@@ -317,11 +317,11 @@ function renderInlineMarkdown(
   })
 }
 
-function parseInline(line: string, style: CVStyle, h3Color?: string): React.ReactNode[] {
+function parseInline(line: string, style: CVStyle, h3Color?: string, keyPrefix = 'inline'): React.ReactNode[] {
   // Handle ### headings
   if (line.startsWith('### ')) {
     return [
-      <span key="h3" style={{ color: h3Color ?? style.fgColor, fontWeight: 600 }}>
+      <span key={`${keyPrefix}-h3`} style={{ color: h3Color ?? style.fgColor, fontWeight: 600 }}>
         <DecorativeText text="###" color={h3Color ?? style.fgColor} weight={600} />
         {line.slice(4)}
       </span>,
@@ -329,7 +329,7 @@ function parseInline(line: string, style: CVStyle, h3Color?: string): React.Reac
   }
   if (line.startsWith('## ')) {
     return [
-      <span key="h2" style={{ color: style.headingColor, fontWeight: 700 }}>
+      <span key={`${keyPrefix}-h2`} style={{ color: style.headingColor, fontWeight: 700 }}>
         <DecorativeText text="##" color={style.headingColor} />
         {line.slice(3)}
       </span>,
@@ -337,7 +337,7 @@ function parseInline(line: string, style: CVStyle, h3Color?: string): React.Reac
   }
   if (line.startsWith('# ')) {
     return [
-      <span key="h1" style={{ color: style.fgColor, fontWeight: 700 }}>
+      <span key={`${keyPrefix}-h1`} style={{ color: style.fgColor, fontWeight: 700 }}>
         <DecorativeText text="#" color={style.fgColor} />
         {line.slice(2)}
       </span>,
@@ -353,21 +353,21 @@ function parseInline(line: string, style: CVStyle, h3Color?: string): React.Reac
   while ((match = pattern.exec(line)) !== null) {
     if (match.index > last) {
       tokens.push(
-        <span key={`t-${last}`} style={{ color: style.fgColor }}>
+        <span key={`${keyPrefix}-t-${last}`} style={{ color: style.fgColor }}>
           {line.slice(last, match.index)}
         </span>
       )
     }
     if (match[0].startsWith('**')) {
       tokens.push(
-        <span key={`b-${match.index}`} style={{ color: style.fgColor, fontWeight: 700 }}>
+        <span key={`${keyPrefix}-b-${match.index}`} style={{ color: style.fgColor, fontWeight: 700 }}>
           {match[2]}
         </span>
       )
     } else {
       tokens.push(
         <span
-          key={`c-${match.index}`}
+          key={`${keyPrefix}-c-${match.index}`}
           style={{
             color: style.accentColor,
             backgroundColor: style.codeBgColor,
@@ -384,7 +384,7 @@ function parseInline(line: string, style: CVStyle, h3Color?: string): React.Reac
 
   if (last < line.length) {
     tokens.push(
-      <span key={`t-end`} style={{ color: style.fgColor }}>
+      <span key={`${keyPrefix}-t-end`} style={{ color: style.fgColor }}>
         {line.slice(last)}
       </span>
     )
