@@ -239,6 +239,97 @@ function renderProjects(section: CVSection, style: CVStyle): React.ReactNode {
   )
 }
 
+function renderCertifications(section: CVSection, style: CVStyle): React.ReactNode {
+  if (section.type !== 'certifications') return renderPlain(section, style)
+  const entries = section.entries
+  if (entries.length === 0) return renderPlain(section, style)
+
+  return (
+    <div>
+      <Line><JKey text="certifications" style={style} /><JPunct text=": [" style={style} /></Line>
+      {entries.map((entry, ei) => {
+        const fields = [
+          ['name', entry.name, style.roleColor],
+          ['issuer', entry.issuer, style.companyColor],
+          ['date', entry.date, style.periodColor],
+          ['credentialId', entry.credentialId, undefined],
+          ['link', entry.link, undefined],
+        ] as const
+        const visibleFields = fields.filter(([, value]) => value.trim())
+        const hasDetails = entry.details.some((detail) => detail.trim())
+        const isLast = ei === entries.length - 1
+
+        return (
+          <div key={ei}>
+            <Line>{I1}<JPunct text="{" style={style} /></Line>
+            {visibleFields.map(([key, value, color], fi) => (
+              <WrappableLine key={key} indent={I2}>
+                <JKey text={key} style={style} /><JPunct text=": " style={style} />
+                <JStringValue text={value} style={style} trailing={fi < visibleFields.length - 1 || hasDetails ? ',' : ''} color={color} />
+              </WrappableLine>
+            ))}
+            {hasDetails && (
+              <>
+                <Line>{I2}<JKey text="details" style={style} /><JPunct text=": [" style={style} /></Line>
+                {entry.details.filter((detail) => detail.trim()).map((detail, di, details) => (
+                  <WrappableLine key={di} indent={I3}><JStringValue text={detail} style={style} trailing={di < details.length - 1 ? ',' : ''} /></WrappableLine>
+                ))}
+                <Line>{I2}<JPunct text="]" style={style} /></Line>
+              </>
+            )}
+            <Line>{I1}<JPunct text={isLast ? '}' : '},'} style={style} /></Line>
+          </div>
+        )
+      })}
+      <Line><JPunct text="]" style={style} /></Line>
+    </div>
+  )
+}
+
+function renderLanguages(section: CVSection, style: CVStyle): React.ReactNode {
+  if (section.type !== 'languages') return renderPlain(section, style)
+  const entries = section.entries
+  if (entries.length === 0) return renderPlain(section, style)
+
+  return (
+    <div>
+      <Line><JKey text="languages" style={style} /><JPunct text=": [" style={style} /></Line>
+      {entries.map((entry, ei) => {
+        const hasProficiency = entry.proficiency.trim().length > 0
+        const details = entry.details.filter((detail) => detail.trim())
+        const isLast = ei === entries.length - 1
+
+        return (
+          <div key={ei}>
+            <Line>{I1}<JPunct text="{" style={style} /></Line>
+            <WrappableLine indent={I2}>
+              <JKey text="language" style={style} /><JPunct text=": " style={style} />
+              <JStringValue text={entry.language} style={style} trailing={hasProficiency || details.length > 0 ? ',' : ''} color={style.categoryColor} />
+            </WrappableLine>
+            {hasProficiency && (
+              <WrappableLine indent={I2}>
+                <JKey text="proficiency" style={style} /><JPunct text=": " style={style} />
+                <JStringValue text={entry.proficiency} style={style} trailing={details.length > 0 ? ',' : ''} color={style.periodColor} />
+              </WrappableLine>
+            )}
+            {details.length > 0 && (
+              <>
+                <Line>{I2}<JKey text="details" style={style} /><JPunct text=": [" style={style} /></Line>
+                {details.map((detail, di) => (
+                  <WrappableLine key={di} indent={I3}><JStringValue text={detail} style={style} trailing={di < details.length - 1 ? ',' : ''} /></WrappableLine>
+                ))}
+                <Line>{I2}<JPunct text="]" style={style} /></Line>
+              </>
+            )}
+            <Line>{I1}<JPunct text={isLast ? '}' : '},'} style={style} /></Line>
+          </div>
+        )
+      })}
+      <Line><JPunct text="]" style={style} /></Line>
+    </div>
+  )
+}
+
 function renderPhoto(section: PhotoSection, style: CVStyle): React.ReactNode {
   if (!section.photoUrl) {
     return <Line><JKey text="photo" style={style} /><JPunct text=": " style={style} /><span style={{ color: style.jsonPunctuationColor }}>null</span></Line>
@@ -301,6 +392,10 @@ export function JsonSectionBlock({ section, style, isFirst, isLast }: Props) {
         return renderSkills(section, style)
       case 'projects':
         return renderProjects(section, style)
+      case 'certifications':
+        return renderCertifications(section, style)
+      case 'languages':
+        return renderLanguages(section, style)
       case 'photo':
         return renderPhoto(section, style)
       default:

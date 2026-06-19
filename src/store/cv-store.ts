@@ -92,6 +92,10 @@ function sectionDefaults(type: SectionType): CVSectionInput {
       return { type, title: 'Skills', subtitle: '', layout: 'list', groups: [{ category: 'Languages', items: ['skill1', 'skill2', 'skill3'] }, { category: 'Tools', items: ['tool1', 'tool2', 'tool3'] }] }
     case 'projects':
       return { type, title: 'Projects', subtitle: '', layout: 'list', entries: [{ name: 'Project Name', description: 'Brief description of what you built.', stack: ['TypeScript', 'React', 'Node.js'], repo: '' }] }
+    case 'certifications':
+      return { type, title: 'Certifications', subtitle: '', layout: 'list', entries: [{ name: 'Certification Name', issuer: 'Issuer', date: 'Year', credentialId: '', link: '', details: ['Add credential context or scope here.'] }] }
+    case 'languages':
+      return { type, title: 'Languages', subtitle: '', layout: 'list', entries: [{ language: 'English', proficiency: 'Professional working proficiency', details: [] }] }
     case 'photo':
       return { type, title: 'Photo', subtitle: '', layout: 'list' }
     case 'personal':

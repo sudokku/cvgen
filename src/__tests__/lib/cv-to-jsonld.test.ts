@@ -325,4 +325,59 @@ describe('cvToJsonLd', () => {
       expect(result).not.toHaveProperty('knowsAbout')
     })
   })
+
+  describe('credentials and languages', () => {
+    it('builds hasCredential from certification sections', () => {
+      const cv = makeCV({
+        sections: [
+          {
+            id: 'cert-1',
+            type: 'certifications',
+            title: 'Certifications',
+            entries: [
+              {
+                name: 'AWS Certified Developer',
+                issuer: 'Amazon Web Services',
+                date: '2024',
+                credentialId: 'ABC-123',
+                link: 'https://example.com/credential',
+                details: ['Validated cloud development fundamentals.'],
+              },
+            ],
+          },
+        ],
+      })
+      const result = cvToJsonLd(cv) as Record<string, unknown>
+      const credentials = result['hasCredential'] as Record<string, unknown>[]
+      const recognizedBy = credentials[0]['recognizedBy'] as Record<string, unknown>
+
+      expect(credentials).toHaveLength(1)
+      expect(credentials[0]['@type']).toBe('EducationalOccupationalCredential')
+      expect(credentials[0]['name']).toBe('AWS Certified Developer')
+      expect(recognizedBy['name']).toBe('Amazon Web Services')
+      expect(credentials[0]['identifier']).toBe('ABC-123')
+    })
+
+    it('builds knowsLanguage from language sections', () => {
+      const cv = makeCV({
+        sections: [
+          {
+            id: 'lang-1',
+            type: 'languages',
+            title: 'Languages',
+            entries: [
+              { language: 'English', proficiency: 'C1', details: [] },
+              { language: 'Romanian', proficiency: 'Native', details: [] },
+            ],
+          },
+        ],
+      })
+      const result = cvToJsonLd(cv) as Record<string, unknown>
+      const languages = result['knowsLanguage'] as Record<string, unknown>[]
+
+      expect(languages).toHaveLength(2)
+      expect(languages[0]).toMatchObject({ '@type': 'Language', name: 'English', description: 'C1' })
+      expect(languages[1]).toMatchObject({ '@type': 'Language', name: 'Romanian', description: 'Native' })
+    })
+  })
 })

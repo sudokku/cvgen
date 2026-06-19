@@ -85,6 +85,30 @@ describe('extractKeywords', () => {
     expect(result).toContain('State University')
   })
 
+  it('includes certification and language keywords', () => {
+    const cv = makeCV({
+      sections: [
+        {
+          id: 'cert-1',
+          type: 'certifications',
+          title: 'Certifications',
+          entries: [{ name: 'AWS Certified Developer', issuer: 'Amazon Web Services', date: '2024', credentialId: '', link: '', details: [] }],
+        },
+        {
+          id: 'lang-1',
+          type: 'languages',
+          title: 'Languages',
+          entries: [{ language: 'English', proficiency: 'C1', details: [] }],
+        },
+      ],
+    })
+    const result = extractKeywords(cv)
+    expect(result).toContain('AWS Certified Developer')
+    expect(result).toContain('Amazon Web Services')
+    expect(result).toContain('English')
+    expect(result).toContain('C1')
+  })
+
   it('deduplicates keywords', () => {
     const cv = makeCV({
       sections: [

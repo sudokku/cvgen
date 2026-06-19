@@ -18,6 +18,8 @@ export function cvToJsonLd(cv: CV): object {
   const experienceSections = sections.filter((s) => s.type === 'experience')
   const educationSections = sections.filter((s) => s.type === 'education')
   const skillsSections = sections.filter((s) => s.type === 'skills')
+  const certificationSections = sections.filter((s) => s.type === 'certifications')
+  const languageSections = sections.filter((s) => s.type === 'languages')
 
   const hasOccupation = experienceSections.flatMap((s) =>
     s.entries.map((entry) => ({
@@ -41,6 +43,30 @@ export function cvToJsonLd(cv: CV): object {
       .filter((item) => item.length > 0 && item.length <= 50)
   ).slice(0, 40)
 
+  const hasCredential = certificationSections.flatMap((s) =>
+    s.entries
+      .filter((entry) => entry.name.trim() || entry.issuer.trim())
+      .map((entry) => ({
+        '@type': 'EducationalOccupationalCredential',
+        ...(entry.name ? { name: entry.name } : {}),
+        ...(entry.issuer ? { recognizedBy: { '@type': 'Organization', name: entry.issuer } } : {}),
+        ...(entry.date ? { dateCreated: entry.date } : {}),
+        ...(entry.credentialId ? { identifier: entry.credentialId } : {}),
+        ...(entry.link ? { url: entry.link } : {}),
+        ...(entry.details.length > 0 ? { description: entry.details.filter(Boolean).join(' ') } : {}),
+      }))
+  )
+
+  const knowsLanguage = languageSections.flatMap((s) =>
+    s.entries
+      .filter((entry) => entry.language.trim())
+      .map((entry) => ({
+        '@type': 'Language',
+        name: entry.language,
+        ...(entry.proficiency ? { description: entry.proficiency } : {}),
+      }))
+  )
+
   return {
     '@context': 'https://schema.org',
     '@type': 'Person',
@@ -53,5 +79,7 @@ export function cvToJsonLd(cv: CV): object {
     ...(hasOccupation.length > 0 ? { hasOccupation } : {}),
     ...(alumniOf.length > 0 ? { alumniOf } : {}),
     ...(knowsAbout.length > 0 ? { knowsAbout } : {}),
+    ...(hasCredential.length > 0 ? { hasCredential } : {}),
+    ...(knowsLanguage.length > 0 ? { knowsLanguage } : {}),
   }
 }

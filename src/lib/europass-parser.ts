@@ -208,22 +208,6 @@ function buildEducationOld(doc: Document, _warnings: string[]): CVSectionInput |
 function buildSkillsOld(doc: Document, warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
 
-  const motherTongues = Array.from(doc.querySelectorAll('MotherTongueList > MotherTongue'))
-    .map((el) => val(el, 'Description') || text(el, 'Description') || null)
-    .filter(Boolean) as string[]
-
-  const foreignLangs = Array.from(doc.querySelectorAll('ForeignLanguage'))
-    .map((el) => {
-      const label = val(el, 'Description') || text(el, 'Description')
-      if (!label) return null
-      const cefrCode = attr(el, 'GlobalUnderstanding', 'code') || attr(el, 'OverallAssessment', 'code') || ''
-      return cefrCode ? `${label} (${cefrCode})` : label
-    })
-    .filter(Boolean) as string[]
-
-  const allLangs = [...motherTongues.map(l => `${l} (native)`), ...foreignLangs]
-  if (allLangs.length > 0) rows.push(`Languages:   ${allLangs.join(' · ')}`)
-
   const computerDesc = val(doc, 'ComputerSkills Description') || text(doc, 'ComputerSkills Description')
     || val(doc, 'Computer Description') || text(doc, 'Computer Description')
   if (computerDesc) {
@@ -242,6 +226,28 @@ function buildSkillsOld(doc: Document, warnings: string[]): CVSectionInput | nul
     return null
   }
   return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
+}
+
+function buildLanguagesOld(doc: Document, _warnings: string[]): CVSectionInput | null {
+  const rows: string[] = []
+
+  const motherTongues = Array.from(doc.querySelectorAll('MotherTongueList > MotherTongue'))
+    .map((el) => val(el, 'Description') || text(el, 'Description') || null)
+    .filter(Boolean) as string[]
+
+  for (const language of motherTongues) {
+    rows.push(`${language}: Native`)
+  }
+
+  for (const el of Array.from(doc.querySelectorAll('ForeignLanguage'))) {
+    const label = val(el, 'Description') || text(el, 'Description')
+    if (!label) continue
+    const cefrCode = attr(el, 'GlobalUnderstanding', 'code') || attr(el, 'OverallAssessment', 'code') || ''
+    rows.push(cefrCode ? `${label}: ${cefrCode}` : label)
+  }
+
+  if (rows.length === 0) return null
+  return legacyContentSection({ type: 'languages', title: 'Languages', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
 function buildSummaryOld(doc: Document, _warnings: string[]): CVSectionInput | null {
@@ -640,43 +646,6 @@ function buildEducationV4(doc: Document, _warnings: string[]): CVSectionInput | 
 function buildSkillsV4(doc: Document, warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
 
-  // Languages — PersonCompetency elements with TaxonomyID = "language"
-  const nativeLangCode = textLocal(doc, 'CandidatePerson', 'PrimaryLanguageCode')
-    || textLocal(doc, 'PrimaryLanguageCode')
-
-  const langCompetencies = qAllLocal(doc, 'PersonCompetency').filter(pc => {
-    const taxId = Array.from(pc.children).find(c => c.localName === 'TaxonomyID')?.textContent?.trim() ?? ''
-    return taxId.toLowerCase() === 'language'
-  })
-
-  const langParts: string[] = []
-  if (nativeLangCode) {
-    langParts.push(`${isoToLangName(nativeLangCode)} (native)`)
-  }
-
-  for (const pc of langCompetencies) {
-    const langCode = Array.from(pc.children).find(c => c.localName === 'CompetencyID')?.textContent?.trim() ?? ''
-    if (!langCode) continue
-    if (nativeLangCode && langCode.toLowerCase() === nativeLangCode.toLowerCase()) continue
-
-    // Find overall CEFR — best score across all dimensions
-    const dimensions = qAllLocal(pc, 'CompetencyDimension')
-    const scores = dimensions.map(dim => {
-      const scoreEl = Array.from(dim.children).find(c => c.localName === 'Score')
-      return (scoreEl ? Array.from(scoreEl.children).find(c => c.localName === 'ScoreText')?.textContent?.trim() : null) ?? ''
-    }).filter(Boolean)
-
-    const langName = isoToLangName(langCode)
-    if (scores.length > 0) {
-      // Use first score as representative overall level
-      langParts.push(`${langName} (${scores[0]})`)
-    } else {
-      langParts.push(langName)
-    }
-  }
-
-  if (langParts.length > 0) rows.push(`Languages:   ${langParts.join(' · ')}`)
-
   // Digital skills — DigitalSkillsGroup (groups with optional Title)
   const digitalGroups = qAllLocal(doc, 'DigitalSkillsGroup')
   if (digitalGroups.length > 0) {
@@ -711,6 +680,39 @@ function buildSkillsV4(doc: Document, warnings: string[]): CVSectionInput | null
   }
 
   return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
+}
+
+function buildLanguagesV4(doc: Document, _warnings: string[]): CVSectionInput | null {
+  const rows: string[] = []
+  const nativeLangCode = textLocal(doc, 'CandidatePerson', 'PrimaryLanguageCode')
+    || textLocal(doc, 'PrimaryLanguageCode')
+
+  if (nativeLangCode) {
+    rows.push(`${isoToLangName(nativeLangCode)}: Native`)
+  }
+
+  const langCompetencies = qAllLocal(doc, 'PersonCompetency').filter(pc => {
+    const taxId = Array.from(pc.children).find(c => c.localName === 'TaxonomyID')?.textContent?.trim() ?? ''
+    return taxId.toLowerCase() === 'language'
+  })
+
+  for (const pc of langCompetencies) {
+    const langCode = Array.from(pc.children).find(c => c.localName === 'CompetencyID')?.textContent?.trim() ?? ''
+    if (!langCode) continue
+    if (nativeLangCode && langCode.toLowerCase() === nativeLangCode.toLowerCase()) continue
+
+    const dimensions = qAllLocal(pc, 'CompetencyDimension')
+    const scores = dimensions.map(dim => {
+      const scoreEl = Array.from(dim.children).find(c => c.localName === 'Score')
+      return (scoreEl ? Array.from(scoreEl.children).find(c => c.localName === 'ScoreText')?.textContent?.trim() : null) ?? ''
+    }).filter(Boolean)
+
+    const langName = isoToLangName(langCode)
+    rows.push(scores.length > 0 ? `${langName}: ${scores[0]}` : langName)
+  }
+
+  if (rows.length === 0) return null
+  return legacyContentSection({ type: 'languages', title: 'Languages', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
 function buildProjectsV4(doc: Document, _warnings: string[]): CVSectionInput | null {
@@ -945,20 +947,17 @@ function buildEducationFromText(lines: string[]): CVSectionInput | null {
   return legacyContentSection({ type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildSkillsFromText(
-  langLines: string[],
-  skillsLines: string[],
-): CVSectionInput | null {
+function buildLanguagesFromText(langLines: string[]): CVSectionInput | null {
   const rows: string[] = []
 
-  // Language skills section
   if (langLines.length > 0) {
     const motherTongueMatch = langLines.join(' ').match(/Mother tongue[^:]*:\s+([A-Z][A-Za-z]+(?:\s*,\s*[A-Z][A-Za-z]+)*)/i)
     const motherTongues = motherTongueMatch ? motherTongueMatch[1].split(',').map(s => s.trim()) : []
 
-    // Foreign languages follow — each looks like "LANGUAGE  CEF  CEF  ..."
-    // The EuroPass text format is: WRITING  UNDERSTANDING  SPEAKING headers, then rows
-    const foreignLangs: string[] = []
+    for (const language of motherTongues) {
+      rows.push(`${language}: Native`)
+    }
+
     let sawHeader = false
     for (const line of langLines) {
       if (/WRITING|UNDERSTANDING|SPEAKING|Listening|Reading|Spoken/i.test(line)) {
@@ -970,21 +969,20 @@ function buildSkillsFromText(
       const langMatch = line.match(/^([A-Z][A-Za-z]+(?:\s[A-Za-z]+)?)\s+((?:[A-C][12]\s*)+)/)
       if (langMatch) {
         const lang = langMatch[1]
-        // First CEFR code as overall level
         const cefrMatch = langMatch[2].trim().match(/[A-C][12]/)
         const cefr = cefrMatch ? cefrMatch[0] : ''
-        foreignLangs.push(cefr ? `${lang} (${cefr})` : lang)
+        rows.push(cefr ? `${lang}: ${cefr}` : lang)
       }
     }
-
-    const allLangs = [
-      ...motherTongues.map(l => `${l} (native)`),
-      ...foreignLangs,
-    ]
-    if (allLangs.length > 0) rows.push(`Languages:   ${allLangs.join(' · ')}`)
   }
 
-  // Skills section — group label followed by "skill1 | skill2 | ..." lines
+  if (rows.length === 0) return null
+  return legacyContentSection({ type: 'languages', title: 'Languages', subtitle: '', content: rows.join('\n'), layout: 'list' })
+}
+
+function buildSkillsFromText(skillsLines: string[]): CVSectionInput | null {
+  const rows: string[] = []
+
   if (skillsLines.length > 0) {
     let currentGroup = ''
     for (const line of skillsLines) {
@@ -1054,6 +1052,9 @@ export function parseEuropassXML(xmlString: string): EuropassImportResult {
     const education = buildEducationV4(doc, warnings)
     if (education) sections.push(education)
 
+    const languages = buildLanguagesV4(doc, warnings)
+    if (languages) sections.push(languages)
+
     const skills = buildSkillsV4(doc, warnings)
     if (skills) sections.push(skills)
 
@@ -1074,6 +1075,9 @@ export function parseEuropassXML(xmlString: string): EuropassImportResult {
 
     const education = buildEducationOld(doc, warnings)
     if (education) sections.push(education)
+
+    const languages = buildLanguagesOld(doc, warnings)
+    if (languages) sections.push(languages)
 
     const skills = buildSkillsOld(doc, warnings)
     if (skills) sections.push(skills)
@@ -1119,7 +1123,10 @@ export function parseEuropassText(text: string): EuropassImportResult {
 
   const langLines = sections.get('LANGUAGE SKILLS') ?? []
   const skillsLines = sections.get('SKILLS') ?? []
-  const skillsSection = buildSkillsFromText(langLines, skillsLines)
+  const languageSection = buildLanguagesFromText(langLines)
+  if (languageSection) cvSections.push(languageSection)
+
+  const skillsSection = buildSkillsFromText(skillsLines)
   if (skillsSection) cvSections.push(skillsSection)
 
   if (cvSections.length === 0) {

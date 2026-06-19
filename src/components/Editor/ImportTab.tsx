@@ -21,6 +21,8 @@ function countSectionItems(section: CVSection): number {
     case 'experience':
     case 'education':
     case 'projects':
+    case 'certifications':
+    case 'languages':
       return section.entries.length
     case 'skills':
       return section.groups.reduce((sum, group) => sum + group.items.length, 0)

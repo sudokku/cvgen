@@ -5,8 +5,10 @@ import { useCVStore } from '@/store/cv-store'
 import {
   CVSection,
   CVStyle,
+  CertificationEntry,
   EducationEntry,
   ExperienceEntry,
+  LanguageEntry,
   PersonalRow,
   ProjectEntry,
   RenderMode,
@@ -26,6 +28,8 @@ const labelClass = 'text-xs font-mono text-gray-500'
 const blankExperience: ExperienceEntry = { role: '', company: '', period: '', details: [] }
 const blankEducation: EducationEntry = { degree: '', institution: '', period: '', details: [] }
 const blankProject: ProjectEntry = { name: '', description: '', stack: [], repo: '' }
+const blankCertification: CertificationEntry = { name: '', issuer: '', date: '', credentialId: '', link: '', details: [] }
+const blankLanguage: LanguageEntry = { language: '', proficiency: '', details: [] }
 const blankSkill: SkillGroup = { category: '', items: [] }
 const blankKeyValue: PersonalRow = { key: '', value: '' }
 
@@ -238,6 +242,47 @@ export function SectionEditor() {
     )
   }
 
+  const renderCertificationControls = () => {
+    if (section.type !== 'certifications') return null
+    const entries = section.entries
+    const editable = entries.length > 0 ? entries : [blankCertification]
+    const commit = (next: CertificationEntry[]) => update({ entries: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Certificate fields" addButton={renderEntryActions(() => commit([...editable, { name: 'Certification Name', issuer: 'Issuer', date: 'Year', credentialId: '', link: '', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Certificate" value={entry.name} onChange={(name) => commit(editAt(editable, index, { name }))} />
+            <Field label="Issuer" value={entry.issuer} onChange={(issuer) => commit(editAt(editable, index, { issuer }))} />
+            <Field label="Date" value={entry.date} onChange={(date) => commit(editAt(editable, index, { date }))} />
+            <Field label="Credential ID" value={entry.credentialId} onChange={(credentialId) => commit(editAt(editable, index, { credentialId }))} />
+            <Field label="Link" value={entry.link} onChange={(link) => commit(editAt(editable, index, { link }))} />
+            <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderLanguageControls = () => {
+    if (section.type !== 'languages') return null
+    const entries = section.entries
+    const editable = entries.length > 0 ? entries : [blankLanguage]
+    const commit = (next: LanguageEntry[]) => update({ entries: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Language fields" addButton={renderEntryActions(() => commit([...editable, { language: 'Language', proficiency: 'Proficiency level', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Language" value={entry.language} onChange={(language) => commit(editAt(editable, index, { language }))} />
+            <Field label="Proficiency" value={entry.proficiency} onChange={(proficiency) => commit(editAt(editable, index, { proficiency }))} />
+            <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
   const renderPersonalControls = () => {
     if (section.type !== 'personal') return null
     const rows = section.rows
@@ -264,6 +309,10 @@ export function SectionEditor() {
         return renderEducationControls()
       case 'projects':
         return renderProjectControls()
+      case 'certifications':
+        return renderCertificationControls()
+      case 'languages':
+        return renderLanguageControls()
       case 'skills':
         return renderSkillsControls()
       case 'personal':

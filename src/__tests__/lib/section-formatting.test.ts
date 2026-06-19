@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   canParseStructuredTimelineContent,
+  parseCertificationContent,
   parseEducationContent,
   parseExperienceContent,
   parseKeyValueContent,
+  parseLanguageContent,
   parseProjectContent,
   parseSkillsContent,
+  serializeCertificationContent,
   serializeEducationContent,
   serializeExperienceContent,
   serializeKeyValueContent,
+  serializeLanguageContent,
   serializeProjectContent,
   serializeSkillsContent,
 } from '@/lib/section-formatting'
@@ -128,6 +132,42 @@ describe('section formatting', () => {
       { category: 'Infra', items: ['Docker', 'Kubernetes', 'AWS'] },
     ])
     expect(parseSkillsContent(serializeSkillsContent(groups))).toEqual(groups)
+  })
+
+  it('round-trips certification entries with issuer, date, credential id, and link', () => {
+    const content = [
+      '### AWS Certified Developer | Amazon Web Services | 2024',
+      'Credential ID: ABC-123',
+      'Link: https://example.com/credential',
+      'Validated cloud development fundamentals.',
+    ].join('\n')
+
+    const entries = parseCertificationContent(content)
+    expect(entries).toEqual([
+      {
+        name: 'AWS Certified Developer',
+        issuer: 'Amazon Web Services',
+        date: '2024',
+        credentialId: 'ABC-123',
+        link: 'https://example.com/credential',
+        details: ['Validated cloud development fundamentals.'],
+      },
+    ])
+    expect(parseCertificationContent(serializeCertificationContent(entries))).toEqual(entries)
+  })
+
+  it('round-trips languages with proficiency levels', () => {
+    const content = [
+      'English: C1',
+      'Romanian: Native',
+    ].join('\n')
+
+    const entries = parseLanguageContent(content)
+    expect(entries).toEqual([
+      { language: 'English', proficiency: 'C1', details: [] },
+      { language: 'Romanian', proficiency: 'Native', details: [] },
+    ])
+    expect(parseLanguageContent(serializeLanguageContent(entries))).toEqual(entries)
   })
 
   it('round-trips personal key/value rows', () => {

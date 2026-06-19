@@ -6,6 +6,8 @@ export type SectionType =
   | 'education'
   | 'skills'
   | 'projects'
+  | 'certifications'
+  | 'languages'
   | 'photo'
   | 'personal'
   | 'custom'
@@ -36,6 +38,21 @@ export interface ProjectEntry {
   description: string
   stack: string[]
   repo: string
+}
+
+export interface CertificationEntry {
+  name: string
+  issuer: string
+  date: string
+  credentialId: string
+  link: string
+  details: string[]
+}
+
+export interface LanguageEntry {
+  language: string
+  proficiency: string
+  details: string[]
 }
 
 export interface SkillGroup {
@@ -100,6 +117,16 @@ export interface ProjectsSection extends CVSectionBase {
   entries: ProjectEntry[]
 }
 
+export interface CertificationsSection extends CVSectionBase {
+  type: 'certifications'
+  entries: CertificationEntry[]
+}
+
+export interface LanguagesSection extends CVSectionBase {
+  type: 'languages'
+  entries: LanguageEntry[]
+}
+
 export interface PhotoSection extends CVSectionBase {
   type: 'photo'
   photoUrl?: string
@@ -126,6 +153,8 @@ export type CVSection =
   | EducationSection
   | SkillsSection
   | ProjectsSection
+  | CertificationsSection
+  | LanguagesSection
   | PhotoSection
   | PersonalSection
   | CustomSection

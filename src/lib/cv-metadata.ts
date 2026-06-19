@@ -28,6 +28,20 @@ export function extractKeywords(cv: CV): string[] {
         if (e.institution) raw.push(e.institution)
       }
     }
+
+    if (section.type === 'certifications') {
+      for (const e of section.entries) {
+        if (e.name) raw.push(e.name)
+        if (e.issuer) raw.push(e.issuer)
+      }
+    }
+
+    if (section.type === 'languages') {
+      for (const e of section.entries) {
+        if (e.language) raw.push(e.language)
+        if (e.proficiency) raw.push(e.proficiency)
+      }
+    }
   }
 
   const seen = new Set<string>()

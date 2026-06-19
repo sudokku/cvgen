@@ -5,9 +5,11 @@ import {
   CVSectionBase,
   CVSectionInput,
   CVStyle,
+  CertificationEntry,
   DEFAULT_STYLE,
   EducationEntry,
   ExperienceEntry,
+  LanguageEntry,
   PersonalRow,
   ProjectEntry,
   SectionType,
@@ -18,6 +20,8 @@ import {
 export type ExperienceEntryModel = ExperienceEntry
 export type EducationEntryModel = EducationEntry
 export type ProjectEntryModel = ProjectEntry
+export type CertificationEntryModel = CertificationEntry
+export type LanguageEntryModel = LanguageEntry
 export type SkillGroupModel = SkillGroup
 export type KeyValueModel = PersonalRow
 
@@ -167,6 +171,67 @@ export function serializeProjectContent(entries: ProjectEntryModel[]): string {
   }))
 }
 
+export function parseCertificationContent(content: string): CertificationEntryModel[] {
+  return parseTimelineEntries(content).map((entry) => {
+    const headerParts = entry.role.split(' | ').map((part) => part.trim()).filter(Boolean)
+    const lines = nonEmptyLines(entry.description)
+    const linkResult = extractInlineField(lines, ['Link', 'URL'])
+    const credentialResult = extractInlineField(linkResult.remainingLines, ['Credential ID', 'Credential', 'ID'])
+    return {
+      name: headerParts[0] ?? entry.role,
+      issuer: headerParts[1] ?? entry.company,
+      date: headerParts[2] ?? entry.period,
+      credentialId: credentialResult.value,
+      link: linkResult.value,
+      details: credentialResult.remainingLines,
+    }
+  })
+}
+
+export function serializeCertificationContent(entries: CertificationEntryModel[]): string {
+  return serializeBlocks(entries.map((entry) => {
+    const header = [entry.name, entry.issuer, entry.date]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(' | ')
+    const lines = [
+      ...entry.details.map((line) => line.trim()).filter(Boolean),
+      ...(entry.credentialId.trim() ? [`Credential ID: ${entry.credentialId.trim()}`] : []),
+      ...(entry.link.trim() ? [`Link: ${entry.link.trim()}`] : []),
+    ]
+    if (!header && lines.length === 0) return ''
+    return lines.length > 0 ? `### ${header}\n${lines.join('\n')}` : `### ${header}`
+  }))
+}
+
+export function parseLanguageContent(content: string): LanguageEntryModel[] {
+  return nonEmptyLines(content).map((line) => {
+    const colonIdx = line.indexOf(':')
+    if (colonIdx === -1) {
+      return { language: line, proficiency: '', details: [] }
+    }
+    return {
+      language: line.slice(0, colonIdx).trim(),
+      proficiency: line.slice(colonIdx + 1).trim(),
+      details: [],
+    }
+  })
+}
+
+export function serializeLanguageContent(entries: LanguageEntryModel[]): string {
+  return entries
+    .map((entry) => {
+      const header = entry.proficiency.trim()
+        ? `${entry.language.trim()}: ${entry.proficiency.trim()}`
+        : entry.language.trim()
+      const details = joinDetails(entry.details)
+      if (!header && !details) return ''
+      return details ? `${header}\n${details}` : header
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
 export function parseSkillsContent(content: string): SkillGroupModel[] {
   return nonEmptyLines(content).map((line) => {
     const colonIdx = line.indexOf(':')
@@ -232,6 +297,14 @@ function isProjectEntries(value: unknown): value is ProjectEntry[] {
   return Array.isArray(value)
 }
 
+function isCertificationEntries(value: unknown): value is CertificationEntry[] {
+  return Array.isArray(value)
+}
+
+function isLanguageEntries(value: unknown): value is LanguageEntry[] {
+  return Array.isArray(value)
+}
+
 function isSkillGroups(value: unknown): value is SkillGroup[] {
   return Array.isArray(value)
 }
@@ -248,6 +321,10 @@ export function sectionToContent(section: CVSection): string {
       return serializeEducationContent(section.entries)
     case 'projects':
       return serializeProjectContent(section.entries)
+    case 'certifications':
+      return serializeCertificationContent(section.entries)
+    case 'languages':
+      return serializeLanguageContent(section.entries)
     case 'skills':
       return serializeSkillsContent(section.groups)
     case 'personal':
@@ -283,6 +360,18 @@ export function normalizeSection(input: CVSection | LegacySection): CVSection {
         ...baseSection(legacy, 'Projects'),
         type: 'projects',
         entries: isProjectEntries(legacy.entries) ? legacy.entries : parseProjectContent(content),
+      }
+    case 'certifications':
+      return {
+        ...baseSection(legacy, 'Certifications'),
+        type: 'certifications',
+        entries: isCertificationEntries(legacy.entries) ? legacy.entries : parseCertificationContent(content),
+      }
+    case 'languages':
+      return {
+        ...baseSection(legacy, 'Languages'),
+        type: 'languages',
+        entries: isLanguageEntries(legacy.entries) ? legacy.entries : parseLanguageContent(content),
       }
     case 'skills':
       return {

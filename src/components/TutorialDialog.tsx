@@ -19,6 +19,14 @@ const sectionGuides = [
     body: 'Use one entry per project. Description explains what it does, Stack lists technologies, and Repo / link stores the public URL when available.',
   },
   {
+    title: 'Certificates',
+    body: 'Use one entry per certificate, license, or formal credential. Fill name, issuer, date, credential ID, link, and optional detail lines for scope or relevance.',
+  },
+  {
+    title: 'Languages',
+    body: 'Use one entry per spoken language. Put the language name in Language and use Proficiency for levels such as Native, Fluent, B2, C1, or Professional working proficiency.',
+  },
+  {
     title: 'Skills',
     body: 'Use category groups such as Languages, Frameworks, Infrastructure, or Tools. Items should stay short and easy to scan.',
   },
@@ -39,6 +47,8 @@ const terms = [
   ['Group', 'A named skill bucket, for example Languages or Infrastructure.'],
   ['Item', 'One skill inside a group, for example TypeScript or Docker.'],
   ['Row', 'A label and value pair used by Personal sections.'],
+  ['Credential', 'A certificate, license, course completion, or professional qualification with an optional issuer, ID, and link.'],
+  ['Proficiency', 'The level attached to a language, such as Native, Fluent, B2, C1, or Professional working proficiency.'],
   ['Markdown aesthetic', 'The generated visual style that looks like markdown headings, code, timelines, and JSON without asking you to write markdown.'],
   ['JSON mode', 'A machine-readable preview mode that presents the CV as structured JSON-looking content.'],
   ['Semantic colors', 'Colors tied to meaning: role, company, period, heading, category, project title, and similar CV parts.'],
