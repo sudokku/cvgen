@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { CV, CVLink, CVSection, CVStyle, DocMode, PersonalRow, RenderMode, SkillGroup } from '@/types/cv'
+import { CV, CVLink, CVSection, CVStyle, DocMode, LanguageEntry, PersonalRow, ProjectEntry, RenderMode, SkillGroup } from '@/types/cv'
 import { TimelineDisplayEntry, TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
 import { AsciiArt } from './AsciiArt'
@@ -81,43 +81,14 @@ function Rule({ style, char = '─' }: { style: CVStyle; char?: string }) {
   )
 }
 
-function PhotoPlaceholder({ cols, rows, style }: { cols: number; rows: number; style: CVStyle }) {
-  const inner = '[Photo]'
-  const lineWidth = Math.max(cols, inner.length + 4)
-  const top = '┌' + '─'.repeat(lineWidth - 2) + '┐'
-  const bottom = '└' + '─'.repeat(lineWidth - 2) + '┘'
-  const emptyLine = '│' + ' '.repeat(lineWidth - 2) + '│'
-  const mid = Math.floor(rows / 2)
-  const pad = Math.floor((lineWidth - 2 - inner.length) / 2)
-  const centeredLine = '│' + ' '.repeat(pad) + inner + ' '.repeat(lineWidth - 2 - pad - inner.length) + '│'
-
-  const lines = [top]
-  for (let i = 1; i < rows - 1; i++) lines.push(i === mid ? centeredLine : emptyLine)
-  lines.push(bottom)
-
-  return (
-    <pre
-      style={{
-        fontFamily: 'inherit',
-        fontSize: `${Math.max(style.fontSize - 4, 7)}px`,
-        lineHeight: 1,
-        color: style.borderColor,
-        margin: 0,
-        whiteSpace: 'pre',
-        flexShrink: 0,
-        ...decorativeStyle,
-      }}
-      aria-hidden="true"
-    >
-      {lines.join('\n')}
-    </pre>
-  )
-}
-
 function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }) {
   const effectiveStyle = section.sectionColors
     ? { ...style, ...section.sectionColors }
     : style
+
+  if (section.type === 'photo' && !section.photoUrl && !section.photoAscii) {
+    return null
+  }
 
   const isTimeline =
     (section.type === 'experience' || section.type === 'education') &&
@@ -225,8 +196,22 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
         </pre>
       )}
 
+      {/* Plain content — projects */}
+      {!isTimeline && section.type !== 'photo' && section.type === 'projects' && (
+        <pre style={preStyle}>
+          {renderProjectsContent(section.entries, effectiveStyle, h3Color)}
+        </pre>
+      )}
+
+      {/* Plain content — languages */}
+      {!isTimeline && section.type !== 'photo' && section.type === 'languages' && (
+        <pre style={preStyle}>
+          {renderLanguagesContent(section.entries, effectiveStyle)}
+        </pre>
+      )}
+
       {/* Plain content — non-skills, non-personal */}
-      {!isTimeline && section.type !== 'photo' && section.type !== 'skills' && section.type !== 'personal' && (
+      {!isTimeline && section.type !== 'photo' && section.type !== 'skills' && section.type !== 'personal' && section.type !== 'projects' && section.type !== 'languages' && (
         <pre style={preStyle}>
           {renderInlineMarkdown(generatedContent, effectiveStyle, h3Color)}
         </pre>
@@ -293,6 +278,112 @@ function renderKeyValueContent(rows: PersonalRow[], style: CVStyle): React.React
       {li < rows.length - 1 ? '\n' : ''}
     </span>
   ))
+}
+
+function normalizeHref(url: string): string {
+  if (!url.trim()) return ''
+  if (/^(https?:|mailto:|tel:)/i.test(url)) return url
+  return `https://${url}`
+}
+
+function renderProjectRepo(repo: string, style: CVStyle, keyPrefix: string): React.ReactNode {
+  const href = normalizeHref(repo)
+  if (!href) return null
+  return (
+    <a
+      key={`${keyPrefix}-repo-link`}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      style={{ color: style.accentColor, textDecoration: 'none' }}
+    >
+      {repo}
+    </a>
+  )
+}
+
+function renderProjectsContent(entries: ProjectEntry[], style: CVStyle, h3Color?: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = []
+
+  entries.forEach((entry, index) => {
+    if (index > 0) nodes.push(<span key={`project-gap-${index}`}>{'\n\n'}</span>)
+
+    if (entry.name.trim()) {
+      nodes.push(
+        <span key={`project-heading-${index}`}>
+          {parseInline(`### ${entry.name.trim()}`, style, h3Color, `project-${index}-heading`)}
+          {'\n'}
+        </span>
+      )
+    }
+
+    if (entry.description.trim()) {
+      nodes.push(
+        <span key={`project-description-${index}`}>
+          {renderInlineMarkdown(entry.description.trim(), style, h3Color)}
+          {'\n'}
+        </span>
+      )
+    }
+
+    const stack = entry.stack.map((item) => item.trim()).filter(Boolean)
+    if (stack.length > 0) {
+      nodes.push(
+        <span key={`project-stack-${index}`}>
+          <span style={{ color: style.fgColor, fontWeight: 700 }}>Stack:</span>
+          <span style={{ color: style.fgColor }}> </span>
+          {stack.flatMap((item, itemIndex) => [
+            itemIndex > 0 ? <span key={`project-stack-${index}-sep-${itemIndex}`} style={{ color: style.fgColor }}>, </span> : null,
+            ...parseInline(item, style, undefined, `project-stack-${index}-${itemIndex}`),
+          ])}
+          .
+          {'\n'}
+        </span>
+      )
+    }
+
+    if (entry.repo.trim()) {
+      nodes.push(
+        <span key={`project-repo-${index}`}>
+          <span style={{ color: style.fgColor, fontWeight: 700 }}>Repo:</span>
+          <span style={{ color: style.fgColor }}> </span>
+          {renderProjectRepo(entry.repo.trim(), style, `project-${index}`)}
+        </span>
+      )
+    }
+  })
+
+  return nodes
+}
+
+function renderLanguagesContent(entries: LanguageEntry[], style: CVStyle): React.ReactNode[] {
+  return entries.map((entry, index) => {
+    const details = entry.details.map((detail) => detail.trim()).filter(Boolean)
+    return (
+      <span key={index}>
+        <span style={{ fontWeight: 700 }}>
+          {entry.language.trim() && (
+            <span style={{ color: style.categoryColor }}>{entry.language.trim()}</span>
+          )}
+          {entry.proficiency.trim() && (
+            <>
+              <span style={{ color: style.fgColor }}>:</span>
+              <span style={{ color: style.fgColor }}> </span>
+              {parseInline(entry.proficiency.trim(), style, undefined, `language-${index}-proficiency`)}
+            </>
+          )}
+        </span>
+        {details.length > 0 && '\n'}
+        {details.map((detail, detailIndex) => (
+          <span key={detailIndex}>
+            {parseInline(detail, style, undefined, `language-${index}-detail-${detailIndex}`)}
+            {detailIndex < details.length - 1 ? '\n' : ''}
+          </span>
+        ))}
+        {index < entries.length - 1 ? '\n' : ''}
+      </span>
+    )
+  })
 }
 
 /**
@@ -436,6 +527,9 @@ function JsonHeaderBlock({ cv }: { cv: CV }) {
 
 export function CVPreview({ cv, containerStyle }: Props) {
   const { meta, sections, style } = cv
+  const visibleSections = sections.filter((section) =>
+    section.type !== 'photo' || !!section.photoUrl || !!section.photoAscii
+  )
 
   // Build link list from meta.links (new) or fall back to deprecated individual fields
   const resolvedLinks: CVLink[] = meta.links && meta.links.length > 0
@@ -544,13 +638,7 @@ export function CVPreview({ cv, containerStyle }: Props) {
               baseFontSize={Math.max(style.fontSize - 4, 7)}
               fallbackColor={style.mutedColor}
             />
-          ) : (
-            <PhotoPlaceholder
-              cols={meta.photoWidth ?? 25}
-              rows={meta.photoHeight ?? 25}
-              style={style}
-            />
-          )}
+          ) : null}
         </div>{/* end flex row */}
 
       </div>
@@ -559,21 +647,21 @@ export function CVPreview({ cv, containerStyle }: Props) {
       {/* ── Sections ── */}
       {cv.docMode === 'json' && (
         <div>
-          {sections.map((section, i) => (
+          {visibleSections.map((section, i) => (
             <JsonSectionBlock
               key={section.id}
               section={section}
               style={style}
               isFirst={i === 0}
-              isLast={i === sections.length - 1}
+              isLast={i === visibleSections.length - 1}
             />
           ))}
         </div>
       )}
-      {cv.docMode !== 'json' && sections.map((section, i) => {
+      {cv.docMode !== 'json' && visibleSections.map((section, i) => {
         const mode = effectiveMode(cv.docMode, section)
         return mode === 'json'
-          ? <JsonSectionBlock key={section.id} section={section} style={style} isFirst={i === 0} isLast={i === sections.length - 1} />
+          ? <JsonSectionBlock key={section.id} section={section} style={style} isFirst={i === 0} isLast={i === visibleSections.length - 1} />
           : <SectionBlock key={section.id} section={section} style={style} />
       })}
     </div>

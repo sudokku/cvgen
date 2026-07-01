@@ -235,11 +235,6 @@ export function TimelineSection({ entries, layout, style }: Props) {
               )}
             </PreLine>
 
-            {/* │  (blank gap before description) */}
-            {descLines.length > 0 && (
-              <PreLine prefix={pipe} prefixColor={style.mutedColor} />
-            )}
-
             {/* │  description line × N */}
             {descLines.map((l, li) => (
               <PreLine key={li} prefix={pipe} prefixColor={style.mutedColor}>
