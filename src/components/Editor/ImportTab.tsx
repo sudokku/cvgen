@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { useCVStore } from '@/store/cv-store'
 import { CV, CVMeta, CVSection } from '@/types/cv'
+import { normalizeCV, normalizeSection } from '@/lib/section-formatting'
 
 type ReviewPayload =
   | { type: 'cvgen'; cv: CV }
@@ -15,8 +16,23 @@ type ImportState =
   | { phase: 'review'; payload: ReviewPayload }
   | { phase: 'done' }
 
-function countEntries(content: string): number {
-  return (content.match(/^### /gm) ?? []).length
+function countSectionItems(section: CVSection): number {
+  switch (section.type) {
+    case 'experience':
+    case 'education':
+    case 'projects':
+    case 'certifications':
+    case 'languages':
+      return section.entries.length
+    case 'skills':
+      return section.groups.reduce((sum, group) => sum + group.items.length, 0)
+    case 'personal':
+      return section.rows.length
+    case 'custom':
+      return section.body.trim() ? 1 : 0
+    case 'photo':
+      return section.photoUrl ? 1 : 0
+  }
 }
 
 const PDF_ACCEPTED = ['.pdf', 'application/pdf']
@@ -55,14 +71,14 @@ export function ImportTab() {
       }
 
       if (body.type === 'cvgen') {
-        setState({ phase: 'review', payload: { type: 'cvgen', cv: body.cv as CV } })
+        setState({ phase: 'review', payload: { type: 'cvgen', cv: normalizeCV(body.cv as CV) } })
       } else if (body.type === 'europass') {
         setState({
           phase: 'review',
           payload: {
             type: 'europass',
             meta: body.meta as CVMeta,
-            sections: body.sections as CVSection[],
+            sections: (body.sections as CVSection[]).map((section) => normalizeSection(section)),
           },
         })
       } else {
@@ -287,7 +303,7 @@ export function ImportTab() {
         </p>
         <div className="flex flex-col gap-1">
           {sections.map((sec, i) => {
-            const count = countEntries(sec.content)
+            const count = countSectionItems(sec)
             return (
               <div
                 key={i}

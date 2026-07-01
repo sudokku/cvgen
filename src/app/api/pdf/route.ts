@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 import { CV } from '@/types/cv'
 import { injectMetadata } from '@/lib/cv-metadata'
 import { launchBrowser } from '@/lib/browser'
+import { normalizeCV } from '@/lib/section-formatting'
 
 interface CacheEntry {
   cv: CV
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing cv field' }, { status: 400 })
   }
 
-  const cv: CV = body.cv
+  const cv: CV = normalizeCV(body.cv as CV)
   evictExpired()
 
   const id = nanoid()
@@ -44,28 +45,11 @@ export async function POST(req: NextRequest) {
     await page.waitForSelector('#cv-print-ready', { timeout: 15_000 })
     // Extra frame for font decode + image paint (font-display: block guarantees load, but decode takes a frame)
     await new Promise(resolve => setTimeout(resolve, 200))
-    const bgColor = cv.style.bgColor
-    const headerTemplate = `
-      <style>
-        #header { padding: 0 !important; margin: 0 !important; }
-        .band { width: 100%; height: 40px; display: block; -webkit-print-color-adjust: exact; }
-      </style>
-      <div class="band" style="background:${bgColor};"></div>`
-    const footerTemplate = `
-      <style>
-        #footer { padding: 0 !important; margin: 0 !important; }
-        .band { width: 100%; height: 40px; display: block; -webkit-print-color-adjust: exact; }
-      </style>
-      <div class="band" style="background:${bgColor};"></div>`
-
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       preferCSSPageSize: true,
-      margin: { top: '40px', right: '0', bottom: '40px', left: '0' },
-      displayHeaderFooter: true,
-      headerTemplate,
-      footerTemplate,
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
     })
     await browser.close()
     browser = undefined

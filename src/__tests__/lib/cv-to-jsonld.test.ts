@@ -147,7 +147,7 @@ describe('cvToJsonLd', () => {
             id: 'exp-1',
             type: 'experience',
             title: 'Experience',
-            content: '### Engineer @ Acme Corp | 2020–2023\nBuilt things.',
+            entries: [{ role: 'Engineer', company: 'Acme Corp', period: '2020–2023', details: ['Built things.'] }],
           },
         ],
       })
@@ -166,7 +166,7 @@ describe('cvToJsonLd', () => {
             id: 'exp-1',
             type: 'experience',
             title: 'Experience',
-            content: '### Engineer @ Acme Corp | 2020–2023',
+            entries: [{ role: 'Engineer', company: 'Acme Corp', period: '2020–2023', details: [] }],
           },
         ],
       })
@@ -185,7 +185,7 @@ describe('cvToJsonLd', () => {
             id: 'exp-1',
             type: 'experience',
             title: 'Experience',
-            content: '### Freelancer | 2020–2023',
+            entries: [{ role: 'Freelancer', company: '', period: '2020–2023', details: [] }],
           },
         ],
       })
@@ -209,7 +209,7 @@ describe('cvToJsonLd', () => {
             id: 'edu-1',
             type: 'education',
             title: 'Education',
-            content: '### BSc Computer Science | State University | 2015–2019',
+            entries: [{ degree: 'BSc Computer Science', institution: 'State University', period: '2015–2019', details: [] }],
           },
         ],
       })
@@ -227,7 +227,7 @@ describe('cvToJsonLd', () => {
             id: 'edu-1',
             type: 'education',
             title: 'Education',
-            content: '### State University | 2015–2019',
+            entries: [{ degree: 'State University', institution: '', period: '2015–2019', details: [] }],
           },
         ],
       })
@@ -252,7 +252,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: 'TypeScript, React, Node.js',
+            groups: [{ category: '', items: ['TypeScript', 'React', 'Node.js'] }],
           },
         ],
       })
@@ -271,7 +271,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: 'Languages: TypeScript, Go',
+            groups: [{ category: 'Languages', items: ['TypeScript', 'Go'] }],
           },
         ],
       })
@@ -291,7 +291,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: `${longSkill}, TypeScript`,
+            groups: [{ category: '', items: [longSkill, 'TypeScript'] }],
           },
         ],
       })
@@ -310,7 +310,7 @@ describe('cvToJsonLd', () => {
             id: 'skills-1',
             type: 'skills',
             title: 'Skills',
-            content: manySkills,
+            groups: [{ category: '', items: manySkills.split(', ') }],
           },
         ],
       })
@@ -323,6 +323,61 @@ describe('cvToJsonLd', () => {
     it('omits knowsAbout when there are no skills sections', () => {
       const result = cvToJsonLd(makeCV()) as Record<string, unknown>
       expect(result).not.toHaveProperty('knowsAbout')
+    })
+  })
+
+  describe('credentials and languages', () => {
+    it('builds hasCredential from certification sections', () => {
+      const cv = makeCV({
+        sections: [
+          {
+            id: 'cert-1',
+            type: 'certifications',
+            title: 'Certifications',
+            entries: [
+              {
+                name: 'AWS Certified Developer',
+                issuer: 'Amazon Web Services',
+                date: '2024',
+                credentialId: 'ABC-123',
+                link: 'https://example.com/credential',
+                details: ['Validated cloud development fundamentals.'],
+              },
+            ],
+          },
+        ],
+      })
+      const result = cvToJsonLd(cv) as Record<string, unknown>
+      const credentials = result['hasCredential'] as Record<string, unknown>[]
+      const recognizedBy = credentials[0]['recognizedBy'] as Record<string, unknown>
+
+      expect(credentials).toHaveLength(1)
+      expect(credentials[0]['@type']).toBe('EducationalOccupationalCredential')
+      expect(credentials[0]['name']).toBe('AWS Certified Developer')
+      expect(recognizedBy['name']).toBe('Amazon Web Services')
+      expect(credentials[0]['identifier']).toBe('ABC-123')
+    })
+
+    it('builds knowsLanguage from language sections', () => {
+      const cv = makeCV({
+        sections: [
+          {
+            id: 'lang-1',
+            type: 'languages',
+            title: 'Languages',
+            entries: [
+              { language: 'English', proficiency: 'C1', details: [] },
+              { language: 'Romanian', proficiency: 'Native', details: [] },
+            ],
+          },
+        ],
+      })
+      const result = cvToJsonLd(cv) as Record<string, unknown>
+      const languages = result['knowsLanguage'] as Record<string, unknown>[]
+
+      expect(languages).toHaveLength(2)
+      expect(languages[0]).toMatchObject({ '@type': 'Language', name: 'English', description: 'C1' })
+      expect(languages[1]).toMatchObject({ '@type': 'Language', name: 'Romanian', description: 'Native' })
     })
   })
 })

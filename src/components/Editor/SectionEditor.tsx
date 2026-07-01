@@ -1,14 +1,37 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useRef, useState } from 'react'
 import { useCVStore } from '@/store/cv-store'
-import { CVSection, CVStyle, RenderMode, SectionType, TimelineLayout } from '@/types/cv'
+import {
+  CVSection,
+  CVStyle,
+  CertificationEntry,
+  EducationEntry,
+  ExperienceEntry,
+  LanguageEntry,
+  PersonalRow,
+  ProjectEntry,
+  RenderMode,
+  SectionType,
+  SkillGroup,
+  TimelineLayout,
+} from '@/types/cv'
 import { useAsciiGenerator } from '@/lib/use-ascii'
 
 const TIMELINE_TYPES: SectionType[] = ['experience', 'education']
 const DEFAULT_MAX_COLS = 80
 const DEFAULT_MAX_ROWS = 40
 const DEFAULT_DENSITY = 2
+const fieldClass = 'bg-gray-950 border border-gray-800 rounded px-2 py-1 text-xs text-gray-200 font-mono focus:outline-none focus:border-gray-600'
+const labelClass = 'text-xs font-mono text-gray-500'
+
+const blankExperience: ExperienceEntry = { role: '', company: '', period: '', details: [] }
+const blankEducation: EducationEntry = { degree: '', institution: '', period: '', details: [] }
+const blankProject: ProjectEntry = { name: '', description: '', stack: [], repo: '' }
+const blankCertification: CertificationEntry = { name: '', issuer: '', date: '', credentialId: '', link: '', details: [] }
+const blankLanguage: LanguageEntry = { language: '', proficiency: '', details: [] }
+const blankSkill: SkillGroup = { category: '', items: [] }
+const blankKeyValue: PersonalRow = { key: '', value: '' }
 
 export function SectionEditor() {
   const { cv, selectedSectionId, updateSection } = useCVStore()
@@ -25,9 +48,11 @@ export function SectionEditor() {
     [section, updateSection]
   )
 
-  const maxCols = section?.photoWidth ?? DEFAULT_MAX_COLS
-  const maxRows = section?.photoHeight ?? DEFAULT_MAX_ROWS
-  const density = section?.photoDensity ?? DEFAULT_DENSITY
+  const photoSection = section?.type === 'photo' ? section : null
+  const maxCols = photoSection?.photoWidth ?? DEFAULT_MAX_COLS
+  const maxRows = photoSection?.photoHeight ?? DEFAULT_MAX_ROWS
+  const density = photoSection?.photoDensity ?? DEFAULT_DENSITY
+  const photoUrl = photoSection?.photoUrl
 
   const handlePhotoUpload = useCallback(
     async (file: File) => {
@@ -50,31 +75,31 @@ export function SectionEditor() {
   const handleMaxColsChange = useCallback(
     async (newMaxCols: number) => {
       update({ photoWidth: newMaxCols, photoAscii: undefined, photoAsciiColors: undefined })
-      if (!section?.photoUrl) return
-      const result = await generate(section.photoUrl, { maxCols: newMaxCols * density, maxRows: maxRows * density })
+      if (!photoUrl) return
+      const result = await generate(photoUrl, { maxCols: newMaxCols * density, maxRows: maxRows * density })
       if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxRows, density, update, generate]
+    [photoUrl, maxRows, density, update, generate]
   )
 
   const handleMaxRowsChange = useCallback(
     async (newMaxRows: number) => {
       update({ photoHeight: newMaxRows, photoAscii: undefined, photoAsciiColors: undefined })
-      if (!section?.photoUrl) return
-      const result = await generate(section.photoUrl, { maxCols: maxCols * density, maxRows: newMaxRows * density })
+      if (!photoUrl) return
+      const result = await generate(photoUrl, { maxCols: maxCols * density, maxRows: newMaxRows * density })
       if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxCols, density, update, generate]
+    [photoUrl, maxCols, density, update, generate]
   )
 
   const handleDensityChange = useCallback(
     async (newDensity: number) => {
       update({ photoDensity: newDensity, photoAscii: undefined, photoAsciiColors: undefined })
-      if (!section?.photoUrl) return
-      const result = await generate(section.photoUrl, { maxCols: maxCols * newDensity, maxRows: maxRows * newDensity })
+      if (!photoUrl) return
+      const result = await generate(photoUrl, { maxCols: maxCols * newDensity, maxRows: maxRows * newDensity })
       if (result) update({ photoAscii: result.ascii, photoAsciiColors: result.colors })
     },
-    [section?.photoUrl, maxCols, maxRows, update, generate]
+    [photoUrl, maxCols, maxRows, update, generate]
   )
 
   if (!section) {
@@ -126,6 +151,188 @@ export function SectionEditor() {
         </div>
       </label>
     )
+  }
+
+  const renderEntryActions = (onAdd: () => void) => (
+    <button
+      onClick={onAdd}
+      className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors"
+    >
+      + add entry
+    </button>
+  )
+
+  const renderExperienceControls = () => {
+    if (section.type !== 'experience') return null
+    const entries = section.entries
+    const editable = entries.length > 0 ? entries : [blankExperience]
+    const commit = (next: ExperienceEntry[]) => update({ entries: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Experience fields" addButton={renderEntryActions(() => commit([...editable, { role: 'Role', company: 'Company', period: 'Year-Year', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <div className="grid grid-cols-1 gap-2">
+              <Field label="Job title" value={entry.role} onChange={(role) => commit(editAt(editable, index, { role }))} />
+              <Field label="Company" value={entry.company} onChange={(company) => commit(editAt(editable, index, { company }))} />
+              <Field label="Period" value={entry.period} onChange={(period) => commit(editAt(editable, index, { period }))} />
+              <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            </div>
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderEducationControls = () => {
+    if (section.type !== 'education') return null
+    const entries = section.entries
+    const editable = entries.length > 0 ? entries : [blankEducation]
+    const commit = (next: EducationEntry[]) => update({ entries: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Education fields" addButton={renderEntryActions(() => commit([...editable, { degree: 'Degree', institution: 'Institution', period: 'Year-Year', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Degree" value={entry.degree} onChange={(degree) => commit(editAt(editable, index, { degree }))} />
+            <Field label="Institution" value={entry.institution} onChange={(institution) => commit(editAt(editable, index, { institution }))} />
+            <Field label="Period" value={entry.period} onChange={(period) => commit(editAt(editable, index, { period }))} />
+            <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderProjectControls = () => {
+    if (section.type !== 'projects') return null
+    const entries = section.entries
+    const editable = entries.length > 0 ? entries : [blankProject]
+    const commit = (next: ProjectEntry[]) => update({ entries: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Project fields" addButton={renderEntryActions(() => commit([...editable, { name: 'Project Name', description: '', stack: [], repo: '' }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Name" value={entry.name} onChange={(name) => commit(editAt(editable, index, { name }))} />
+            <TextAreaField label="Description" value={entry.description} onChange={(description) => commit(editAt(editable, index, { description }))} />
+            <Field label="Stack" value={entry.stack.join(', ')} onChange={(stack) => commit(editAt(editable, index, { stack: stack.split(',').map((item) => item.trim()) }))} />
+            <Field label="Repo / link" value={entry.repo} onChange={(repo) => commit(editAt(editable, index, { repo }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderSkillsControls = () => {
+    if (section.type !== 'skills') return null
+    const groups = section.groups
+    const editable = groups.length > 0 ? groups : [blankSkill]
+    const commit = (next: SkillGroup[]) => update({ groups: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Skill groups" addButton={renderEntryActions(() => commit([...editable, { category: 'Category', items: [] }]))}>
+        {editable.map((group, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Category" value={group.category} onChange={(category) => commit(editAt(editable, index, { category }))} />
+            <Field label="Items" value={group.items.join(' · ')} onChange={(items) => commit(editAt(editable, index, { items: items.split('·').map((item) => item.trim()) }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderCertificationControls = () => {
+    if (section.type !== 'certifications') return null
+    const entries = section.entries
+    const editable = entries.length > 0 ? entries : [blankCertification]
+    const commit = (next: CertificationEntry[]) => update({ entries: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Certificate fields" addButton={renderEntryActions(() => commit([...editable, { name: 'Certification Name', issuer: 'Issuer', date: 'Year', credentialId: '', link: '', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Certificate" value={entry.name} onChange={(name) => commit(editAt(editable, index, { name }))} />
+            <Field label="Issuer" value={entry.issuer} onChange={(issuer) => commit(editAt(editable, index, { issuer }))} />
+            <Field label="Date" value={entry.date} onChange={(date) => commit(editAt(editable, index, { date }))} />
+            <Field label="Credential ID" value={entry.credentialId} onChange={(credentialId) => commit(editAt(editable, index, { credentialId }))} />
+            <Field label="Link" value={entry.link} onChange={(link) => commit(editAt(editable, index, { link }))} />
+            <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderLanguageControls = () => {
+    if (section.type !== 'languages') return null
+    const entries = section.entries
+    const editable = entries.length > 0 ? entries : [blankLanguage]
+    const commit = (next: LanguageEntry[]) => update({ entries: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Language fields" addButton={renderEntryActions(() => commit([...editable, { language: 'Language', proficiency: 'Proficiency level', details: [] }]))}>
+        {editable.map((entry, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Language" value={entry.language} onChange={(language) => commit(editAt(editable, index, { language }))} />
+            <Field label="Proficiency" value={entry.proficiency} onChange={(proficiency) => commit(editAt(editable, index, { proficiency }))} />
+            <TextAreaField label="Details" value={entry.details.join('\n')} onChange={(details) => commit(editAt(editable, index, { details: details.split('\n') }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderPersonalControls = () => {
+    if (section.type !== 'personal') return null
+    const rows = section.rows
+    const editable = rows.length > 0 ? rows : [blankKeyValue]
+    const commit = (next: PersonalRow[]) => update({ rows: next } as Partial<CVSection>)
+    return (
+      <StructuredPanel title="Personal fields" addButton={renderEntryActions(() => commit([...editable, { key: 'Field', value: '' }]))}>
+        {editable.map((row, index) => (
+          <div key={index} className="rounded border border-gray-800 p-2 space-y-2">
+            <Field label="Label" value={row.key} onChange={(key) => commit(editAt(editable, index, { key }))} />
+            <Field label="Value" value={row.value} onChange={(value) => commit(editAt(editable, index, { value }))} />
+            {editable.length > 1 && <RemoveButton onClick={() => commit(editable.filter((_, i) => i !== index))} />}
+          </div>
+        ))}
+      </StructuredPanel>
+    )
+  }
+
+  const renderStructuredControls = () => {
+    switch (section.type) {
+      case 'experience':
+        return renderExperienceControls()
+      case 'education':
+        return renderEducationControls()
+      case 'projects':
+        return renderProjectControls()
+      case 'certifications':
+        return renderCertificationControls()
+      case 'languages':
+        return renderLanguageControls()
+      case 'skills':
+        return renderSkillsControls()
+      case 'personal':
+        return renderPersonalControls()
+      case 'custom':
+        return (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">Body</span>
+            <textarea
+              value={section.body}
+              onChange={(e) => update({ body: e.target.value } as Partial<CVSection>)}
+              className="w-full min-h-[180px] bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-200 font-mono resize-y focus:outline-none focus:border-gray-600 placeholder-gray-700"
+              placeholder="Write section text here..."
+              spellCheck={false}
+            />
+          </label>
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -314,19 +521,8 @@ export function SectionEditor() {
           )}
         </div>
       ) : (
-        <div>
-          {canUseTimeline && section.layout !== 'list' && (
-            <p className="text-xs text-gray-600 font-mono mb-2">
-              Format: <code className="text-gray-500">### Role @ Company | Period</code>
-            </p>
-          )}
-          <textarea
-            value={section.content}
-            onChange={(e) => update({ content: e.target.value })}
-            className="w-full min-h-[180px] bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-200 font-mono resize-y focus:outline-none focus:border-gray-600 placeholder-gray-700"
-            placeholder="Write markdown content here..."
-            spellCheck={false}
-          />
+        <div className="space-y-3">
+          {renderStructuredControls()}
         </div>
       )}
 
@@ -366,4 +562,54 @@ export function SectionEditor() {
       </div>
     </div>
   )
+}
+
+function StructuredPanel({
+  title,
+  addButton,
+  children,
+}: {
+  title: string
+  addButton: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <div className="rounded border border-gray-800 bg-gray-950/40 p-2 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-mono text-gray-500 uppercase tracking-wide">{title}</span>
+        {addButton}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className={labelClass}>{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} />
+    </label>
+  )
+}
+
+function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className={labelClass}>{label}</span>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} className={`${fieldClass} min-h-20 resize-y`} />
+    </label>
+  )
+}
+
+function RemoveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="text-xs font-mono text-red-500 hover:text-red-400 transition-colors">
+      remove
+    </button>
+  )
+}
+
+function editAt<T>(items: T[], index: number, patch: Partial<T>): T[] {
+  return items.map((item, i) => (i === index ? { ...item, ...patch } : item))
 }

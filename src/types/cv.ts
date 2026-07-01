@@ -6,6 +6,8 @@ export type SectionType =
   | 'education'
   | 'skills'
   | 'projects'
+  | 'certifications'
+  | 'languages'
   | 'photo'
   | 'personal'
   | 'custom'
@@ -16,6 +18,52 @@ export interface CVLink {
 }
 
 export type TimelineLayout = 'vertical' | 'horizontal' | 'list'
+
+export interface ExperienceEntry {
+  role: string
+  company: string
+  period: string
+  details: string[]
+}
+
+export interface EducationEntry {
+  degree: string
+  institution: string
+  period: string
+  details: string[]
+}
+
+export interface ProjectEntry {
+  name: string
+  description: string
+  stack: string[]
+  repo: string
+}
+
+export interface CertificationEntry {
+  name: string
+  issuer: string
+  date: string
+  credentialId: string
+  link: string
+  details: string[]
+}
+
+export interface LanguageEntry {
+  language: string
+  proficiency: string
+  details: string[]
+}
+
+export interface SkillGroup {
+  category: string
+  items: string[]
+}
+
+export interface PersonalRow {
+  key: string
+  value: string
+}
 
 export interface CVMeta {
   name: string
@@ -39,13 +87,48 @@ export interface CVMeta {
   photoMode?: 'ascii' | 'image'
 }
 
-export interface CVSection {
+export interface CVSectionBase {
   id: string
   type: SectionType
   title: string
   subtitle?: string
-  content: string
   layout?: TimelineLayout
+  renderMode?: RenderMode  // only used when CV.docMode === 'per-section'
+  sectionColors?: Partial<CVStyle>
+}
+
+export interface ExperienceSection extends CVSectionBase {
+  type: 'experience'
+  entries: ExperienceEntry[]
+}
+
+export interface EducationSection extends CVSectionBase {
+  type: 'education'
+  entries: EducationEntry[]
+}
+
+export interface SkillsSection extends CVSectionBase {
+  type: 'skills'
+  groups: SkillGroup[]
+}
+
+export interface ProjectsSection extends CVSectionBase {
+  type: 'projects'
+  entries: ProjectEntry[]
+}
+
+export interface CertificationsSection extends CVSectionBase {
+  type: 'certifications'
+  entries: CertificationEntry[]
+}
+
+export interface LanguagesSection extends CVSectionBase {
+  type: 'languages'
+  entries: LanguageEntry[]
+}
+
+export interface PhotoSection extends CVSectionBase {
+  type: 'photo'
   photoUrl?: string
   photoAscii?: string
   photoAsciiColors?: string[][]
@@ -53,9 +136,32 @@ export interface CVSection {
   photoHeight?: number  // visual height baseline (rows at density=1)
   photoDensity?: number // 1 / 2 / 3 — sub-pixel density multiplier
   photoMode?: 'ascii' | 'image'
-  renderMode?: RenderMode  // only used when CV.docMode === 'per-section'
-  sectionColors?: Partial<CVStyle>
 }
+
+export interface PersonalSection extends CVSectionBase {
+  type: 'personal'
+  rows: PersonalRow[]
+}
+
+export interface CustomSection extends CVSectionBase {
+  type: 'custom'
+  body: string
+}
+
+export type CVSection =
+  | ExperienceSection
+  | EducationSection
+  | SkillsSection
+  | ProjectsSection
+  | CertificationsSection
+  | LanguagesSection
+  | PhotoSection
+  | PersonalSection
+  | CustomSection
+
+type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never
+
+export type CVSectionInput = WithoutId<CVSection>
 
 export interface CVStyle {
   fontFamily: string

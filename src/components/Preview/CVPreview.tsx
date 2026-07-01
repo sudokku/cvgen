@@ -1,21 +1,83 @@
 'use client'
 
-import { CV, CVLink, CVSection, CVStyle, DocMode, RenderMode } from '@/types/cv'
-import { TimelineSection } from './TimelineSection'
+import { useEffect, useRef } from 'react'
+import { CV, CVLink, CVSection, CVStyle, DocMode, PersonalRow, RenderMode, SkillGroup } from '@/types/cv'
+import { TimelineDisplayEntry, TimelineSection } from './TimelineSection'
 import { clipAscii } from '@/lib/clip-ascii'
 import { AsciiArt } from './AsciiArt'
 import { JsonSectionBlock, JKey, JStr, JPunct } from './JsonSectionBlock'
+import { sectionToContent } from '@/lib/section-formatting'
 
 interface Props {
   cv: CV
   containerStyle?: React.CSSProperties
 }
 
+const decorativeStyle: React.CSSProperties = {
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+}
+
+function DecorativeText({
+  text,
+  color,
+  weight = 700,
+}: {
+  text: string
+  color: string
+  weight?: number
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const width = text.length * 10
+    const height = 16
+    const scale = window.devicePixelRatio || 1
+    canvas.width = width * scale
+    canvas.height = height * scale
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.scale(scale, scale)
+    ctx.clearRect(0, 0, width, height)
+    ctx.fillStyle = color
+    ctx.font = `${weight} 16px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace`
+    ctx.textBaseline = 'top'
+    ctx.fillText(text, 0, 0)
+  }, [color, text, weight])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      role="presentation"
+      aria-hidden="true"
+      style={{
+        ...decorativeStyle,
+        display: 'inline-block',
+        width: `${text.length * 0.62}em`,
+        height: '1em',
+        marginRight: '0.25em',
+        verticalAlign: '-0.12em',
+      }}
+    />
+  )
+}
+
 function Rule({ style, char = '─' }: { style: CVStyle; char?: string }) {
   return (
-    <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', color: style.borderColor, letterSpacing: '-1px' }}>
-      {char.repeat(300)}
-    </div>
+    <div
+      aria-hidden="true"
+      style={{
+        ...decorativeStyle,
+        borderTop: `${char === '═' ? 2 : 1}px solid ${style.borderColor}`,
+        height: 0,
+        width: '100%',
+      }}
+    />
   )
 }
 
@@ -43,7 +105,9 @@ function PhotoPlaceholder({ cols, rows, style }: { cols: number; rows: number; s
         margin: 0,
         whiteSpace: 'pre',
         flexShrink: 0,
+        ...decorativeStyle,
       }}
+      aria-hidden="true"
     >
       {lines.join('\n')}
     </pre>
@@ -58,6 +122,7 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
   const isTimeline =
     (section.type === 'experience' || section.type === 'education') &&
     section.layout !== 'list'
+  const generatedContent = sectionToContent(section)
 
   const headingSize = Math.round(effectiveStyle.fontSize * 1.1)
 
@@ -80,7 +145,7 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
   return (
     <div style={{ marginBottom: '28px' }}>
       {/* Section heading */}
-      <div style={{ marginBottom: '8px' }}>
+      <div style={{ marginBottom: '8px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
         <div
           style={{
             fontSize: `${headingSize}px`,
@@ -89,7 +154,8 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
             letterSpacing: '0.03em',
           }}
         >
-          ## {section.title}
+          <DecorativeText text="##" color={effectiveStyle.headingColor} />
+          {section.title}
         </div>
         {section.subtitle && (
           <div style={{ color: effectiveStyle.subtitleColor, marginTop: '2px' }}>
@@ -139,23 +205,30 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
       {/* Timeline */}
       {isTimeline && (
         <TimelineSection
-          content={section.content}
+          entries={timelineEntriesForSection(section)}
           layout={section.layout ?? 'vertical'}
           style={effectiveStyle}
         />
       )}
 
-      {/* Plain content — skills and personal (both use key:value category rendering) */}
-      {!isTimeline && section.type !== 'photo' && (section.type === 'skills' || section.type === 'personal') && (
+      {/* Plain content — skills */}
+      {!isTimeline && section.type !== 'photo' && section.type === 'skills' && (
         <pre style={preStyle}>
-          {renderSkillsContent(section.content, effectiveStyle)}
+          {renderSkillsContent(section.groups, effectiveStyle)}
+        </pre>
+      )}
+
+      {/* Plain content — personal key/value pairs */}
+      {!isTimeline && section.type !== 'photo' && section.type === 'personal' && (
+        <pre style={preStyle}>
+          {renderKeyValueContent(section.rows, effectiveStyle)}
         </pre>
       )}
 
       {/* Plain content — non-skills, non-personal */}
       {!isTimeline && section.type !== 'photo' && section.type !== 'skills' && section.type !== 'personal' && (
         <pre style={preStyle}>
-          {renderInlineMarkdown(section.content, effectiveStyle, h3Color)}
+          {renderInlineMarkdown(generatedContent, effectiveStyle, h3Color)}
         </pre>
       )}
     </div>
@@ -166,28 +239,60 @@ function SectionBlock({ section, style }: { section: CVSection; style: CVStyle }
  * Skills-specific renderer that colors the category label (text before `:`)
  * with categoryColor.
  */
-function renderSkillsContent(content: string, style: CVStyle): React.ReactNode[] {
-  const lines = content.split('\n')
-  return lines.map((line, li) => {
-    const colonIdx = line.indexOf(':')
+function timelineEntriesForSection(section: CVSection): TimelineDisplayEntry[] {
+  if (section.type === 'experience') {
+    return section.entries.map((entry) => ({
+      role: entry.role,
+      company: entry.company,
+      period: entry.period,
+      description: entry.details.join('\n'),
+    }))
+  }
+  if (section.type === 'education') {
+    return section.entries.map((entry) => ({
+      role: entry.degree,
+      company: entry.institution,
+      period: entry.period,
+      description: entry.details.join('\n'),
+    }))
+  }
+  return []
+}
+
+function renderSkillsContent(rows: SkillGroup[], style: CVStyle): React.ReactNode[] {
+  return rows.map((row, li) => {
     const nodes: React.ReactNode[] = []
-    if (colonIdx > 0 && !line.startsWith('#')) {
-      const category = line.slice(0, colonIdx)
-      const rest = line.slice(colonIdx)
+    if (row.category) {
       nodes.push(
-        <span key="cat" style={{ color: style.categoryColor, fontWeight: 600 }}>{category}</span>,
-        <span key="rest" style={{ color: style.fgColor }}>{rest}</span>
+        <span key="cat" style={{ color: style.categoryColor, fontWeight: 600 }}>{row.category}</span>,
+        <span key="colon" style={{ color: style.fgColor }}>:</span>,
+        ...row.items.flatMap((item, itemIndex) => [
+          itemIndex > 0 ? <span key={`sep-${itemIndex}`} style={{ color: style.fgColor }}> · </span> : <span key="space" style={{ color: style.fgColor }}> </span>,
+          ...parseInline(item, style, undefined, `skill-${li}-${itemIndex}`),
+        ])
       )
     } else {
-      nodes.push(...parseInline(line, style))
+      nodes.push(...parseInline(row.items.join(' · '), style, undefined, `skill-${li}`))
     }
     return (
       <span key={li}>
         {nodes}
-        {li < lines.length - 1 ? '\n' : ''}
+        {li < rows.length - 1 ? '\n' : ''}
       </span>
     )
   })
+}
+
+function renderKeyValueContent(rows: PersonalRow[], style: CVStyle): React.ReactNode[] {
+  return rows.map((row, li) => (
+    <span key={li}>
+      {row.key && <span style={{ color: style.categoryColor, fontWeight: 600 }}>{row.key}</span>}
+      {row.key && <span style={{ color: style.fgColor }}>:</span>}
+      {row.value && <span style={{ color: style.fgColor }}> </span>}
+      {row.value && parseInline(row.value, style, undefined, `personal-${li}`)}
+      {li < rows.length - 1 ? '\n' : ''}
+    </span>
+  ))
 }
 
 /**
@@ -202,7 +307,7 @@ function renderInlineMarkdown(
 ): React.ReactNode[] {
   const lines = text.split('\n')
   return lines.map((line, li) => {
-    const parts = parseInline(line, style, h3Color)
+    const parts = parseInline(line, style, h3Color, `line-${li}`)
     return (
       <span key={li}>
         {parts}
@@ -212,26 +317,29 @@ function renderInlineMarkdown(
   })
 }
 
-function parseInline(line: string, style: CVStyle, h3Color?: string): React.ReactNode[] {
+function parseInline(line: string, style: CVStyle, h3Color?: string, keyPrefix = 'inline'): React.ReactNode[] {
   // Handle ### headings
   if (line.startsWith('### ')) {
     return [
-      <span key="h3" style={{ color: h3Color ?? style.fgColor, fontWeight: 600 }}>
-        {line}
+      <span key={`${keyPrefix}-h3`} style={{ color: h3Color ?? style.fgColor, fontWeight: 600 }}>
+        <DecorativeText text="###" color={h3Color ?? style.fgColor} weight={600} />
+        {line.slice(4)}
       </span>,
     ]
   }
   if (line.startsWith('## ')) {
     return [
-      <span key="h2" style={{ color: style.headingColor, fontWeight: 700 }}>
-        {line}
+      <span key={`${keyPrefix}-h2`} style={{ color: style.headingColor, fontWeight: 700 }}>
+        <DecorativeText text="##" color={style.headingColor} />
+        {line.slice(3)}
       </span>,
     ]
   }
   if (line.startsWith('# ')) {
     return [
-      <span key="h1" style={{ color: style.fgColor, fontWeight: 700 }}>
-        {line}
+      <span key={`${keyPrefix}-h1`} style={{ color: style.fgColor, fontWeight: 700 }}>
+        <DecorativeText text="#" color={style.fgColor} />
+        {line.slice(2)}
       </span>,
     ]
   }
@@ -245,21 +353,21 @@ function parseInline(line: string, style: CVStyle, h3Color?: string): React.Reac
   while ((match = pattern.exec(line)) !== null) {
     if (match.index > last) {
       tokens.push(
-        <span key={`t-${last}`} style={{ color: style.fgColor }}>
+        <span key={`${keyPrefix}-t-${last}`} style={{ color: style.fgColor }}>
           {line.slice(last, match.index)}
         </span>
       )
     }
     if (match[0].startsWith('**')) {
       tokens.push(
-        <span key={`b-${match.index}`} style={{ color: style.fgColor, fontWeight: 700 }}>
+        <span key={`${keyPrefix}-b-${match.index}`} style={{ color: style.fgColor, fontWeight: 700 }}>
           {match[2]}
         </span>
       )
     } else {
       tokens.push(
         <span
-          key={`c-${match.index}`}
+          key={`${keyPrefix}-c-${match.index}`}
           style={{
             color: style.accentColor,
             backgroundColor: style.codeBgColor,
@@ -276,7 +384,7 @@ function parseInline(line: string, style: CVStyle, h3Color?: string): React.Reac
 
   if (last < line.length) {
     tokens.push(
-      <span key={`t-end`} style={{ color: style.fgColor }}>
+      <span key={`${keyPrefix}-t-end`} style={{ color: style.fgColor }}>
         {line.slice(last)}
       </span>
     )
@@ -376,7 +484,8 @@ export function CVPreview({ cv, containerStyle }: Props) {
                 letterSpacing: '0.02em',
               }}
             >
-              # {meta.name}
+              <DecorativeText text="#" color={style.fgColor} />
+              {meta.name}
             </div>
 
             {meta.title && (

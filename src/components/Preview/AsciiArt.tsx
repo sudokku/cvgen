@@ -1,4 +1,6 @@
-import React from 'react'
+'use client'
+
+import { useEffect, useRef } from 'react'
 
 interface AsciiArtProps {
   ascii: string
@@ -33,42 +35,62 @@ export function AsciiArt({
   padding,
   borderRadius,
 }: AsciiArtProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const lines = ascii.split('\n')
   const fontSize = Math.max(2, baseFontSize / density)
   const hasColors = !!colors && colors.length === lines.length
 
   // Stable bounding box: width = baseCols × (baseFontSize / 1.7), independent of density.
   const targetWidthPx = baseCols * (baseFontSize / 1.7)
+  const heightPx = lines.length * fontSize
+  const longestLine = Math.max(1, ...lines.map((line) => Array.from(line).length))
+  const charWidth = targetWidthPx / longestLine
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const scale = window.devicePixelRatio || 1
+    canvas.width = Math.ceil(targetWidthPx * scale)
+    canvas.height = Math.ceil(heightPx * scale)
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.scale(scale, scale)
+    ctx.clearRect(0, 0, targetWidthPx, heightPx)
+    if (background) {
+      ctx.fillStyle = background
+      ctx.fillRect(0, 0, targetWidthPx, heightPx)
+    }
+    ctx.font = `${fontSize}px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace`
+    ctx.textBaseline = 'top'
+
+    for (let r = 0; r < lines.length; r++) {
+      const chars = Array.from(lines[r])
+      for (let c = 0; c < chars.length; c++) {
+        ctx.fillStyle = hasColors ? colors![r]?.[c] ?? fallbackColor : fallbackColor
+        ctx.fillText(chars[c], c * charWidth, r * fontSize)
+      }
+    }
+  }, [background, charWidth, colors, fallbackColor, fontSize, hasColors, heightPx, lines, targetWidthPx])
 
   return (
-    <pre
+    <canvas
+      ref={canvasRef}
+      role="presentation"
       style={{
-        fontFamily: 'inherit',
-        fontSize: `${fontSize}px`,
-        lineHeight: 1,
-        margin: 0,
-        whiteSpace: 'pre',
+        display: 'block',
         flexShrink: 0,
-        color: fallbackColor,
         background,
         padding,
         borderRadius,
         width: `${targetWidthPx}px`,
-        // Prevent sub-pixel jitter between rows on retina.
-        WebkitFontSmoothing: 'antialiased',
+        height: `${heightPx}px`,
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
       }}
-    >
-      {lines.map((line, r) => (
-        <div key={r} style={{ display: 'block', height: `${fontSize}px`, lineHeight: 1 }}>
-          {hasColors
-            ? Array.from(line).map((ch, c) => (
-                <span key={c} style={{ color: colors![r]?.[c] ?? fallbackColor }}>
-                  {ch}
-                </span>
-              ))
-            : line}
-        </div>
-      ))}
-    </pre>
+      aria-hidden="true"
+    />
   )
 }

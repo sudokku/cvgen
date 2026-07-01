@@ -22,7 +22,7 @@ describe('extractKeywords', () => {
 
   it('includes section titles', () => {
     const cv = makeCV({
-      sections: [{ id: 's1', type: 'skills', title: 'Technical Skills', content: 'TypeScript' }],
+      sections: [{ id: 's1', type: 'skills', title: 'Technical Skills', groups: [{ category: '', items: ['TypeScript'] }] }],
     })
     const result = extractKeywords(cv)
     expect(result).toContain('Technical Skills')
@@ -31,7 +31,7 @@ describe('extractKeywords', () => {
   it('includes individual skill tokens from skills sections', () => {
     const cv = makeCV({
       sections: [
-        { id: 's1', type: 'skills', title: 'Skills', content: 'TypeScript, React, Node.js' },
+        { id: 's1', type: 'skills', title: 'Skills', groups: [{ category: '', items: ['TypeScript', 'React', 'Node.js'] }] },
       ],
     })
     const result = extractKeywords(cv)
@@ -43,7 +43,7 @@ describe('extractKeywords', () => {
   it('strips category labels from skills (text before colon)', () => {
     const cv = makeCV({
       sections: [
-        { id: 's1', type: 'skills', title: 'Skills', content: 'Languages: TypeScript, Go' },
+        { id: 's1', type: 'skills', title: 'Skills', groups: [{ category: 'Languages', items: ['TypeScript', 'Go'] }] },
       ],
     })
     const result = extractKeywords(cv)
@@ -60,7 +60,7 @@ describe('extractKeywords', () => {
           id: 'exp-1',
           type: 'experience',
           title: 'Experience',
-          content: '### Engineer @ Acme Corp | 2020–2023',
+          entries: [{ role: 'Engineer', company: 'Acme Corp', period: '2020–2023', details: [] }],
         },
       ],
     })
@@ -76,19 +76,43 @@ describe('extractKeywords', () => {
           id: 'edu-1',
           type: 'education',
           title: 'Education',
-          content: '### BSc Computer Science | State University | 2015–2019',
+          entries: [{ degree: 'BSc Computer Science', institution: 'State University', period: '2015–2019', details: [] }],
         },
       ],
     })
     const result = extractKeywords(cv)
-    // The parser treats everything before the last | as the role when no @ is present
-    expect(result).toContain('BSc Computer Science | State University')
+    expect(result).toContain('BSc Computer Science')
+    expect(result).toContain('State University')
+  })
+
+  it('includes certification and language keywords', () => {
+    const cv = makeCV({
+      sections: [
+        {
+          id: 'cert-1',
+          type: 'certifications',
+          title: 'Certifications',
+          entries: [{ name: 'AWS Certified Developer', issuer: 'Amazon Web Services', date: '2024', credentialId: '', link: '', details: [] }],
+        },
+        {
+          id: 'lang-1',
+          type: 'languages',
+          title: 'Languages',
+          entries: [{ language: 'English', proficiency: 'C1', details: [] }],
+        },
+      ],
+    })
+    const result = extractKeywords(cv)
+    expect(result).toContain('AWS Certified Developer')
+    expect(result).toContain('Amazon Web Services')
+    expect(result).toContain('English')
+    expect(result).toContain('C1')
   })
 
   it('deduplicates keywords', () => {
     const cv = makeCV({
       sections: [
-        { id: 's1', type: 'skills', title: 'Skills', content: 'TypeScript, TypeScript, React' },
+        { id: 's1', type: 'skills', title: 'Skills', groups: [{ category: '', items: ['TypeScript', 'TypeScript', 'React'] }] },
       ],
     })
     const result = extractKeywords(cv)
@@ -99,7 +123,7 @@ describe('extractKeywords', () => {
   it('excludes keywords longer than 50 characters', () => {
     const longKeyword = 'A'.repeat(51)
     const cv = makeCV({
-      sections: [{ id: 's1', type: 'skills', title: 'Skills', content: longKeyword }],
+      sections: [{ id: 's1', type: 'skills', title: 'Skills', groups: [{ category: '', items: [longKeyword] }] }],
     })
     const result = extractKeywords(cv)
     expect(result).not.toContain(longKeyword)
@@ -108,7 +132,7 @@ describe('extractKeywords', () => {
   it('caps the result at 40 keywords', () => {
     const manySkills = Array.from({ length: 60 }, (_, i) => `Skill${i}`).join(', ')
     const cv = makeCV({
-      sections: [{ id: 's1', type: 'skills', title: 'Skills', content: manySkills }],
+      sections: [{ id: 's1', type: 'skills', title: 'Skills', groups: [{ category: '', items: manySkills.split(', ') }] }],
     })
     const result = extractKeywords(cv)
     expect(result.length).toBeLessThanOrEqual(40)

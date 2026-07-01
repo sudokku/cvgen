@@ -6,6 +6,7 @@ import { CVPreview } from '@/components/Preview/CVPreview'
 import { CV } from '@/types/cv'
 import { cvToJsonLd } from '@/lib/cv-to-jsonld'
 import { extractKeywords } from '@/lib/cv-metadata'
+import { normalizeCV } from '@/lib/section-formatting'
 
 function PrintContent() {
   const searchParams = useSearchParams()
@@ -57,7 +58,7 @@ function PrintContent() {
         return
       }
       const data: CV = await res.json()
-      setCv(data)
+      setCv(normalizeCV(data))
     }
 
     fetchCv().catch((e) => setError(String(e)))
@@ -131,11 +132,16 @@ function PrintContent() {
           margin: 0;
           padding: 0;
           width: 100%;
+          min-height: 100%;
           background: ${cv.style.bgColor};
+        }
+        #cv-preview {
+          -webkit-box-decoration-break: clone;
+          box-decoration-break: clone;
         }
       `}</style>
       <div style={{ width: '100%', boxSizing: 'border-box' }}>
-        <CVPreview cv={cv} containerStyle={{ paddingTop: 0, paddingBottom: 0 }} />
+        <CVPreview cv={cv} />
       </div>
       <div id="cv-print-ready" style={{ display: 'none' }} />
     </>

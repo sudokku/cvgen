@@ -1,13 +1,67 @@
 'use client'
 
 import React from 'react'
-import { parseTimelineEntries } from '@/lib/timeline-parser'
 import { CVStyle, TimelineLayout } from '@/types/cv'
 
+export interface TimelineDisplayEntry {
+  role: string
+  company: string
+  period: string
+  description: string
+}
+
 interface Props {
-  content: string
+  entries: TimelineDisplayEntry[]
   layout: TimelineLayout
   style: CVStyle
+}
+
+const decorativeStyle: React.CSSProperties = {
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+}
+
+function TimelinePrefix({ prefix, color }: { prefix: string; color: string }) {
+  const isBranch = prefix.startsWith('├') || prefix.startsWith('└')
+  const isLastBranch = prefix.startsWith('└')
+  const isPipe = prefix.startsWith('│')
+
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        ...decorativeStyle,
+        display: 'inline-block',
+        position: 'relative',
+        width: '3ch',
+        height: '1.6em',
+        verticalAlign: 'top',
+      }}
+    >
+      {(isPipe || isBranch) && (
+        <span
+          style={{
+            position: 'absolute',
+            left: '0.38ch',
+            top: isLastBranch ? 0 : 0,
+            bottom: isLastBranch ? '50%' : 0,
+            borderLeft: `1px solid ${color}`,
+          }}
+        />
+      )}
+      {isBranch && (
+        <span
+          style={{
+            position: 'absolute',
+            left: '0.38ch',
+            top: '50%',
+            width: '1.15ch',
+            borderTop: `1px solid ${color}`,
+          }}
+        />
+      )}
+    </span>
+  )
 }
 
 // Wrap a string to lines of at most `width` chars, splitting on spaces.
@@ -53,15 +107,51 @@ function PreLine({
 }) {
   return (
     <div style={{ whiteSpace: 'pre' }}>
-      <span style={{ color: prefixColor }}>{prefix}</span>
+      <TimelinePrefix prefix={prefix} color={prefixColor} />
       {children}
     </div>
   )
 }
 
-export function TimelineSection({ content, layout, style }: Props) {
-  const entries = parseTimelineEntries(content)
+function InlineText({ text, style, color, keyPrefix = 'inline' }: { text: string; style: CVStyle; color?: string; keyPrefix?: string }) {
+  const baseColor = color ?? style.fgColor
+  const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`)/g
+  const tokens: React.ReactNode[] = []
+  let last = 0
+  let match: RegExpExecArray | null
 
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > last) {
+      tokens.push(<span key={`${keyPrefix}-t-${last}`} style={{ color: baseColor }}>{text.slice(last, match.index)}</span>)
+    }
+    if (match[0].startsWith('**')) {
+      tokens.push(<span key={`${keyPrefix}-b-${match.index}`} style={{ color: baseColor, fontWeight: 700 }}>{match[2]}</span>)
+    } else {
+      tokens.push(
+        <span
+          key={`${keyPrefix}-c-${match.index}`}
+          style={{
+            color: style.accentColor,
+            backgroundColor: style.codeBgColor,
+            padding: '0 3px',
+            borderRadius: '3px',
+          }}
+        >
+          {match[3]}
+        </span>
+      )
+    }
+    last = match.index + match[0].length
+  }
+
+  if (last < text.length) {
+    tokens.push(<span key={`${keyPrefix}-t-end`} style={{ color: baseColor }}>{text.slice(last)}</span>)
+  }
+
+  return <>{tokens}</>
+}
+
+export function TimelineSection({ entries, layout, style }: Props) {
   if (layout === 'horizontal') {
     return (
       <div style={{ overflowX: 'auto', paddingBottom: '8px' }}>
@@ -72,7 +162,18 @@ export function TimelineSection({ content, layout, style }: Props) {
             return (
               <span key={i} style={{ color: style.mutedColor }}>
                 <span style={{ color: style.periodColor }}>{label}</span>
-                {connector}
+                {connector && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      ...decorativeStyle,
+                      display: 'inline-block',
+                      width: '8ch',
+                      borderTop: `1px solid ${style.mutedColor}`,
+                      verticalAlign: 'middle',
+                    }}
+                  />
+                )}
               </span>
             )
           })}
@@ -84,7 +185,7 @@ export function TimelineSection({ content, layout, style }: Props) {
               {entry.company && <div style={{ color: style.companyColor }}>@ {entry.company}</div>}
               {entry.description && (
                 <div style={{ color: style.mutedColor, marginTop: '2px', whiteSpace: 'pre-wrap' }}>
-                  {entry.description}
+                  <InlineText text={entry.description} style={style} color={style.mutedColor} keyPrefix={`horizontal-${i}`} />
                 </div>
               )}
             </div>
@@ -120,7 +221,7 @@ export function TimelineSection({ content, layout, style }: Props) {
         const descLines = wordWrap(entry.description, WRAP_WIDTH)
 
         return (
-          <div key={i}>
+          <div key={i} style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
             {/* ├─ period */}
             <PreLine prefix={branch} prefixColor={style.mutedColor}>
               <span style={{ color: style.periodColor }}>{entry.period}</span>
@@ -142,7 +243,7 @@ export function TimelineSection({ content, layout, style }: Props) {
             {/* │  description line × N */}
             {descLines.map((l, li) => (
               <PreLine key={li} prefix={pipe} prefixColor={style.mutedColor}>
-                {l && <span style={{ color: style.mutedColor }}>{l}</span>}
+                {l && <InlineText text={l} style={style} color={style.mutedColor} keyPrefix={`vertical-${i}-${li}`} />}
               </PreLine>
             ))}
 

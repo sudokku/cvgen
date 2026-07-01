@@ -1,8 +1,8 @@
 import { CV } from '@/types/cv'
-import { parseTimelineEntries } from './timeline-parser'
+import { normalizeCV } from './section-formatting'
 
 export function extractKeywords(cv: CV): string[] {
-  const { meta, sections } = cv
+  const { meta, sections } = normalizeCV(cv)
   const raw: string[] = []
 
   if (meta.title) raw.push(meta.title)
@@ -11,15 +11,35 @@ export function extractKeywords(cv: CV): string[] {
     raw.push(section.title)
 
     if (section.type === 'skills') {
-      const items = section.content.split(/[\n,|•]+/).map((t) => t.replace(/^[^:]+:/, '').trim())
+      const items = section.groups.flatMap((group) => group.items)
       raw.push(...items)
     }
 
-    if (section.type === 'experience' || section.type === 'education') {
-      const entries = parseTimelineEntries(section.content)
-      for (const e of entries) {
+    if (section.type === 'experience') {
+      for (const e of section.entries) {
         if (e.role) raw.push(e.role)
         if (e.company) raw.push(e.company)
+      }
+    }
+
+    if (section.type === 'education') {
+      for (const e of section.entries) {
+        if (e.degree) raw.push(e.degree)
+        if (e.institution) raw.push(e.institution)
+      }
+    }
+
+    if (section.type === 'certifications') {
+      for (const e of section.entries) {
+        if (e.name) raw.push(e.name)
+        if (e.issuer) raw.push(e.issuer)
+      }
+    }
+
+    if (section.type === 'languages') {
+      for (const e of section.entries) {
+        if (e.language) raw.push(e.language)
+        if (e.proficiency) raw.push(e.proficiency)
       }
     }
   }

@@ -1,8 +1,9 @@
-import { CVLink, CVMeta, CVSection, SectionType } from '@/types/cv'
+import { CVLink, CVMeta, CVSectionInput, SectionType } from '@/types/cv'
+import { legacyContentSection } from './section-formatting'
 
 export interface EuropassImportResult {
   meta: CVMeta
-  sections: Omit<CVSection, 'id'>[]
+  sections: CVSectionInput[]
   warnings: string[]
 }
 
@@ -165,7 +166,7 @@ function inferLinkLabel(url: string, useCode: string): string {
 // OLD SCHEMA — EuroPass SkillsPassport XML
 // ══════════════════════════════════════════════════════════════════════════════
 
-function buildExperienceOld(doc: Document, warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildExperienceOld(doc: Document, warnings: string[]): CVSectionInput | null {
   const entries = Array.from(doc.querySelectorAll('WorkExperienceList > WorkExperience'))
   if (entries.length === 0) return null
 
@@ -182,10 +183,10 @@ function buildExperienceOld(doc: Document, warnings: string[]): Omit<CVSection, 
     return description ? `${header}\n${description}` : header
   })
 
-  return { type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildEducationOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildEducationOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const entries = Array.from(doc.querySelectorAll('EducationList > Education'))
   if (entries.length === 0) return null
 
@@ -201,27 +202,11 @@ function buildEducationOld(doc: Document, _warnings: string[]): Omit<CVSection, 
     return description ? `${header}\n${description}` : header
   })
 
-  return { type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildSkillsOld(doc: Document, warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSkillsOld(doc: Document, warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
-
-  const motherTongues = Array.from(doc.querySelectorAll('MotherTongueList > MotherTongue'))
-    .map((el) => val(el, 'Description') || text(el, 'Description') || null)
-    .filter(Boolean) as string[]
-
-  const foreignLangs = Array.from(doc.querySelectorAll('ForeignLanguage'))
-    .map((el) => {
-      const label = val(el, 'Description') || text(el, 'Description')
-      if (!label) return null
-      const cefrCode = attr(el, 'GlobalUnderstanding', 'code') || attr(el, 'OverallAssessment', 'code') || ''
-      return cefrCode ? `${label} (${cefrCode})` : label
-    })
-    .filter(Boolean) as string[]
-
-  const allLangs = [...motherTongues.map(l => `${l} (native)`), ...foreignLangs]
-  if (allLangs.length > 0) rows.push(`Languages:   ${allLangs.join(' · ')}`)
 
   const computerDesc = val(doc, 'ComputerSkills Description') || text(doc, 'ComputerSkills Description')
     || val(doc, 'Computer Description') || text(doc, 'Computer Description')
@@ -240,17 +225,39 @@ function buildSkillsOld(doc: Document, warnings: string[]): Omit<CVSection, 'id'
     warnings.push('No skills data found in this EuroPass XML.')
     return null
   }
-  return { type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildSummaryOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildLanguagesOld(doc: Document, _warnings: string[]): CVSectionInput | null {
+  const rows: string[] = []
+
+  const motherTongues = Array.from(doc.querySelectorAll('MotherTongueList > MotherTongue'))
+    .map((el) => val(el, 'Description') || text(el, 'Description') || null)
+    .filter(Boolean) as string[]
+
+  for (const language of motherTongues) {
+    rows.push(`${language}: Native`)
+  }
+
+  for (const el of Array.from(doc.querySelectorAll('ForeignLanguage'))) {
+    const label = val(el, 'Description') || text(el, 'Description')
+    if (!label) continue
+    const cefrCode = attr(el, 'GlobalUnderstanding', 'code') || attr(el, 'OverallAssessment', 'code') || ''
+    rows.push(cefrCode ? `${label}: ${cefrCode}` : label)
+  }
+
+  if (rows.length === 0) return null
+  return legacyContentSection({ type: 'languages', title: 'Languages', subtitle: '', content: rows.join('\n'), layout: 'list' })
+}
+
+function buildSummaryOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const rawSummary = val(doc, 'ProfileSummary Description') || text(doc, 'ProfileSummary Description')
     || val(doc, 'ProfileSummary') || text(doc, 'ProfileSummary')
   if (!rawSummary) return null
-  return { type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' })
 }
 
-function buildPersonalOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildPersonalOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
 
   const birthYear = text(doc, 'Demographics Birthdate Year')
@@ -274,10 +281,10 @@ function buildPersonalOld(doc: Document, _warnings: string[]): Omit<CVSection, '
   if (gender) rows.push(`Gender:        ${gender}`)
 
   if (rows.length === 0) return null
-  return { type: 'personal', title: 'Personal Information', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'personal', title: 'Personal Information', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildSoftSkillsOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSoftSkillsOld(doc: Document, _warnings: string[]): CVSectionInput | null {
   const buckets: Array<[string, string]> = [
     ['Communication', 'Communication Description'],
     ['Organisational', 'Organisational Description'],
@@ -292,10 +299,10 @@ function buildSoftSkillsOld(doc: Document, _warnings: string[]): Omit<CVSection,
     rows.push(`${label}:   ${md.replace(/\n/g, ' ')}`)
   }
   if (rows.length === 0) return null
-  return { type: 'custom', title: 'Soft Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Soft Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildAchievementsOld(doc: Document, _warnings: string[]): Omit<CVSection, 'id'>[] {
+function buildAchievementsOld(doc: Document, _warnings: string[]): CVSectionInput[] {
   const entries = Array.from(doc.querySelectorAll('AchievementList > Achievement'))
   if (entries.length === 0) return []
 
@@ -314,7 +321,7 @@ function buildAchievementsOld(doc: Document, _warnings: string[]): Omit<CVSectio
     groups.get(code)!.blocks.push(block)
   }
 
-  return Array.from(groups.values()).map(({ type, title, blocks }) => ({
+  return Array.from(groups.values()).map(({ type, title, blocks }) => legacyContentSection({
     type, title, subtitle: '', content: blocks.join('\n\n'), layout: 'list' as const,
   }))
 }
@@ -563,14 +570,14 @@ function buildMetaV4(doc: Document, warnings: string[]): CVMeta {
   return meta
 }
 
-function buildSummaryV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSummaryV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const rawSummary = textLocal(doc, 'CandidateProfile', 'ExecutiveSummary')
     || textLocal(doc, 'ExecutiveSummary')
   if (!rawSummary) return null
-  return { type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Summary', subtitle: '', content: htmlToMarkdown(rawSummary), layout: 'list' })
 }
 
-function buildExperienceV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildExperienceV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const employerHistories = qAllLocal(doc, 'EmployerHistory')
   if (employerHistories.length === 0) return null
 
@@ -607,10 +614,10 @@ function buildExperienceV4(doc: Document, _warnings: string[]): Omit<CVSection, 
   }).filter(Boolean) as string[]
 
   if (blocks.length === 0) return null
-  return { type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildEducationV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildEducationV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const attendances = qAllLocal(doc, 'EducationOrganizationAttendance')
   if (attendances.length === 0) return null
 
@@ -633,48 +640,11 @@ function buildEducationV4(doc: Document, _warnings: string[]): Omit<CVSection, '
   }).filter(Boolean) as string[]
 
   if (blocks.length === 0) return null
-  return { type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildSkillsV4(doc: Document, warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildSkillsV4(doc: Document, warnings: string[]): CVSectionInput | null {
   const rows: string[] = []
-
-  // Languages — PersonCompetency elements with TaxonomyID = "language"
-  const nativeLangCode = textLocal(doc, 'CandidatePerson', 'PrimaryLanguageCode')
-    || textLocal(doc, 'PrimaryLanguageCode')
-
-  const langCompetencies = qAllLocal(doc, 'PersonCompetency').filter(pc => {
-    const taxId = Array.from(pc.children).find(c => c.localName === 'TaxonomyID')?.textContent?.trim() ?? ''
-    return taxId.toLowerCase() === 'language'
-  })
-
-  const langParts: string[] = []
-  if (nativeLangCode) {
-    langParts.push(`${isoToLangName(nativeLangCode)} (native)`)
-  }
-
-  for (const pc of langCompetencies) {
-    const langCode = Array.from(pc.children).find(c => c.localName === 'CompetencyID')?.textContent?.trim() ?? ''
-    if (!langCode) continue
-    if (nativeLangCode && langCode.toLowerCase() === nativeLangCode.toLowerCase()) continue
-
-    // Find overall CEFR — best score across all dimensions
-    const dimensions = qAllLocal(pc, 'CompetencyDimension')
-    const scores = dimensions.map(dim => {
-      const scoreEl = Array.from(dim.children).find(c => c.localName === 'Score')
-      return (scoreEl ? Array.from(scoreEl.children).find(c => c.localName === 'ScoreText')?.textContent?.trim() : null) ?? ''
-    }).filter(Boolean)
-
-    const langName = isoToLangName(langCode)
-    if (scores.length > 0) {
-      // Use first score as representative overall level
-      langParts.push(`${langName} (${scores[0]})`)
-    } else {
-      langParts.push(langName)
-    }
-  }
-
-  if (langParts.length > 0) rows.push(`Languages:   ${langParts.join(' · ')}`)
 
   // Digital skills — DigitalSkillsGroup (groups with optional Title)
   const digitalGroups = qAllLocal(doc, 'DigitalSkillsGroup')
@@ -709,10 +679,43 @@ function buildSkillsV4(doc: Document, warnings: string[]): Omit<CVSection, 'id'>
     return null
   }
 
-  return { type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildProjectsV4(doc: Document, _warnings: string[]): Omit<CVSection, 'id'> | null {
+function buildLanguagesV4(doc: Document, _warnings: string[]): CVSectionInput | null {
+  const rows: string[] = []
+  const nativeLangCode = textLocal(doc, 'CandidatePerson', 'PrimaryLanguageCode')
+    || textLocal(doc, 'PrimaryLanguageCode')
+
+  if (nativeLangCode) {
+    rows.push(`${isoToLangName(nativeLangCode)}: Native`)
+  }
+
+  const langCompetencies = qAllLocal(doc, 'PersonCompetency').filter(pc => {
+    const taxId = Array.from(pc.children).find(c => c.localName === 'TaxonomyID')?.textContent?.trim() ?? ''
+    return taxId.toLowerCase() === 'language'
+  })
+
+  for (const pc of langCompetencies) {
+    const langCode = Array.from(pc.children).find(c => c.localName === 'CompetencyID')?.textContent?.trim() ?? ''
+    if (!langCode) continue
+    if (nativeLangCode && langCode.toLowerCase() === nativeLangCode.toLowerCase()) continue
+
+    const dimensions = qAllLocal(pc, 'CompetencyDimension')
+    const scores = dimensions.map(dim => {
+      const scoreEl = Array.from(dim.children).find(c => c.localName === 'Score')
+      return (scoreEl ? Array.from(scoreEl.children).find(c => c.localName === 'ScoreText')?.textContent?.trim() : null) ?? ''
+    }).filter(Boolean)
+
+    const langName = isoToLangName(langCode)
+    rows.push(scores.length > 0 ? `${langName}: ${scores[0]}` : langName)
+  }
+
+  if (rows.length === 0) return null
+  return legacyContentSection({ type: 'languages', title: 'Languages', subtitle: '', content: rows.join('\n'), layout: 'list' })
+}
+
+function buildProjectsV4(doc: Document, _warnings: string[]): CVSectionInput | null {
   const projects = qAllLocal(doc, 'Project')
   if (projects.length === 0) return null
 
@@ -734,7 +737,7 @@ function buildProjectsV4(doc: Document, _warnings: string[]): Omit<CVSection, 'i
   })
 
   if (blocks.length === 0) return null
-  return { type: 'projects', title: 'Projects', subtitle: '', content: blocks.join('\n\n'), layout: 'list' }
+  return legacyContentSection({ type: 'projects', title: 'Projects', subtitle: '', content: blocks.join('\n\n'), layout: 'list' })
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -874,7 +877,7 @@ function buildMetaFromText(headerLines: string[], warnings: string[]): CVMeta {
   return meta
 }
 
-function buildExperienceFromText(lines: string[]): Omit<CVSection, 'id'> | null {
+function buildExperienceFromText(lines: string[]): CVSectionInput | null {
   if (lines.length === 0) return null
 
   const blocks: string[] = []
@@ -910,10 +913,10 @@ function buildExperienceFromText(lines: string[]): Omit<CVSection, 'id'> | null 
   }
 
   if (blocks.length === 0) return null
-  return { type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'experience', title: 'Experience', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildEducationFromText(lines: string[]): Omit<CVSection, 'id'> | null {
+function buildEducationFromText(lines: string[]): CVSectionInput | null {
   if (lines.length === 0) return null
 
   const blocks: string[] = []
@@ -941,23 +944,20 @@ function buildEducationFromText(lines: string[]): Omit<CVSection, 'id'> | null {
   }
 
   if (blocks.length === 0) return null
-  return { type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' }
+  return legacyContentSection({ type: 'education', title: 'Education', subtitle: '', content: blocks.join('\n\n'), layout: 'vertical' })
 }
 
-function buildSkillsFromText(
-  langLines: string[],
-  skillsLines: string[],
-): Omit<CVSection, 'id'> | null {
+function buildLanguagesFromText(langLines: string[]): CVSectionInput | null {
   const rows: string[] = []
 
-  // Language skills section
   if (langLines.length > 0) {
     const motherTongueMatch = langLines.join(' ').match(/Mother tongue[^:]*:\s+([A-Z][A-Za-z]+(?:\s*,\s*[A-Z][A-Za-z]+)*)/i)
     const motherTongues = motherTongueMatch ? motherTongueMatch[1].split(',').map(s => s.trim()) : []
 
-    // Foreign languages follow — each looks like "LANGUAGE  CEF  CEF  ..."
-    // The EuroPass text format is: WRITING  UNDERSTANDING  SPEAKING headers, then rows
-    const foreignLangs: string[] = []
+    for (const language of motherTongues) {
+      rows.push(`${language}: Native`)
+    }
+
     let sawHeader = false
     for (const line of langLines) {
       if (/WRITING|UNDERSTANDING|SPEAKING|Listening|Reading|Spoken/i.test(line)) {
@@ -969,21 +969,20 @@ function buildSkillsFromText(
       const langMatch = line.match(/^([A-Z][A-Za-z]+(?:\s[A-Za-z]+)?)\s+((?:[A-C][12]\s*)+)/)
       if (langMatch) {
         const lang = langMatch[1]
-        // First CEFR code as overall level
         const cefrMatch = langMatch[2].trim().match(/[A-C][12]/)
         const cefr = cefrMatch ? cefrMatch[0] : ''
-        foreignLangs.push(cefr ? `${lang} (${cefr})` : lang)
+        rows.push(cefr ? `${lang}: ${cefr}` : lang)
       }
     }
-
-    const allLangs = [
-      ...motherTongues.map(l => `${l} (native)`),
-      ...foreignLangs,
-    ]
-    if (allLangs.length > 0) rows.push(`Languages:   ${allLangs.join(' · ')}`)
   }
 
-  // Skills section — group label followed by "skill1 | skill2 | ..." lines
+  if (rows.length === 0) return null
+  return legacyContentSection({ type: 'languages', title: 'Languages', subtitle: '', content: rows.join('\n'), layout: 'list' })
+}
+
+function buildSkillsFromText(skillsLines: string[]): CVSectionInput | null {
+  const rows: string[] = []
+
   if (skillsLines.length > 0) {
     let currentGroup = ''
     for (const line of skillsLines) {
@@ -1005,13 +1004,13 @@ function buildSkillsFromText(
   }
 
   if (rows.length === 0) return null
-  return { type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' }
+  return legacyContentSection({ type: 'skills', title: 'Skills', subtitle: '', content: rows.join('\n'), layout: 'list' })
 }
 
-function buildSummaryFromText(lines: string[]): Omit<CVSection, 'id'> | null {
+function buildSummaryFromText(lines: string[]): CVSectionInput | null {
   const content = lines.join('\n').trim()
   if (!content) return null
-  return { type: 'custom', title: 'Summary', subtitle: '', content, layout: 'list' }
+  return legacyContentSection({ type: 'custom', title: 'Summary', subtitle: '', content, layout: 'list' })
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1037,7 +1036,7 @@ export function parseEuropassXML(xmlString: string): EuropassImportResult {
     warnings.push(`Root element is <${rootName}>, expected <Candidate> or <SkillsPassport>. Will attempt import anyway.`)
   }
 
-  const sections: Omit<CVSection, 'id'>[] = []
+  const sections: CVSectionInput[] = []
   let meta: CVMeta
 
   if (isCandidate || (!isSkillsPassport && isCandidate)) {
@@ -1052,6 +1051,9 @@ export function parseEuropassXML(xmlString: string): EuropassImportResult {
 
     const education = buildEducationV4(doc, warnings)
     if (education) sections.push(education)
+
+    const languages = buildLanguagesV4(doc, warnings)
+    if (languages) sections.push(languages)
 
     const skills = buildSkillsV4(doc, warnings)
     if (skills) sections.push(skills)
@@ -1073,6 +1075,9 @@ export function parseEuropassXML(xmlString: string): EuropassImportResult {
 
     const education = buildEducationOld(doc, warnings)
     if (education) sections.push(education)
+
+    const languages = buildLanguagesOld(doc, warnings)
+    if (languages) sections.push(languages)
 
     const skills = buildSkillsOld(doc, warnings)
     if (skills) sections.push(skills)
@@ -1102,7 +1107,7 @@ export function parseEuropassText(text: string): EuropassImportResult {
   const headerLines = sections.get('__header__') ?? []
   const meta = buildMetaFromText(headerLines, warnings)
 
-  const cvSections: Omit<CVSection, 'id'>[] = []
+  const cvSections: CVSectionInput[] = []
 
   const aboutLines = sections.get('ABOUT MYSELF') ?? []
   const summarySection = buildSummaryFromText(aboutLines)
@@ -1118,7 +1123,10 @@ export function parseEuropassText(text: string): EuropassImportResult {
 
   const langLines = sections.get('LANGUAGE SKILLS') ?? []
   const skillsLines = sections.get('SKILLS') ?? []
-  const skillsSection = buildSkillsFromText(langLines, skillsLines)
+  const languageSection = buildLanguagesFromText(langLines)
+  if (languageSection) cvSections.push(languageSection)
+
+  const skillsSection = buildSkillsFromText(skillsLines)
   if (skillsSection) cvSections.push(skillsSection)
 
   if (cvSections.length === 0) {
